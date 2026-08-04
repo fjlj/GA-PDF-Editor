@@ -1,0 +1,63 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>app/ layout — GA PDF Editor</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <a class="brand" href="../index.html">GA PDF Editor <span>· Docs</span></a>
+    <nav class="no-print">
+      <a href="../index.html">Index</a>
+      <a href="../CASE-STUDY.html">Case study</a>
+      
+      <button type="button" class="btn-print" onclick="window.print()">Print / PDF</button>
+    </nav>
+  </div>
+</header>
+<div class="wrap">
+  <div class="eyebrow">Application</div>
+  <p class="doc-meta"><strong>Source</strong> <code>app/README.md</code></p>
+  <article>
+<h1>app/ layout</h1>
+<pre><code>app/
+  index.html          # shell + script loader
+  config.js           # version + feature flags
+  manifest.json       # PWA
+  sw.js               # network-only service worker
+  assets/
+    css/              # app stylesheets
+      fonts.css
+      style.css
+    fonts/            # UI web fonts (.woff2)
+    icons/            # favicon + PWA icons
+  js/                 # application source
+    core/
+    engine/
+    features/
+    interaction/
+    overlays/
+    ui/
+  lib/                # third-party vendors (do not edit lightly)
+    pdfjs/            # PDF.js + cmaps + standard_fonts
+    pdf-lib/
+    html2canvas/
+    qpdf/
+    tesseract/</code></pre>
+<p>Paths in code are relative to <code>app/</code> (where index.html lives).</p>
+<h2>Slim package / offline vendors</h2>
+<p>Heavy <code>lib/</code> and <code>assets/fonts/</code> can be omitted for shipping. Maintainers:</p>
+<pre><code>cd tools\package
+.\package.ps1                 # dist\*-slim-*.zip  (ships tools\setup.ps1 in the zip)
+.\package.ps1 -IncludeFullLibs</code></pre>
+<p>Recipients (after unzip): double-click **<code>Setup.bat</code>** at the package root.</p>
+<p>See <code>tools/SETUP.md</code> in the zip (source: <code>tools/package/SETUP.md</code>).</p>
+  </article>
+  <p class="footer-note">Same visual language as the field journal / case study. Chrome / Edge: <strong>Print — Save as PDF</strong> (enable background graphics to keep the dark theme).</p>
+</div>
+</body>
+</html>

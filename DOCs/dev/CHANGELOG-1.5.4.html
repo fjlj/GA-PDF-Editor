@@ -1,0 +1,313 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Changelog — Forms reliability, app layout, offline package &amp; SVC (1.4 → 1.5.3) — GA PDF Editor</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <a class="brand" href="../index.html">GA PDF Editor <span>· Docs</span></a>
+    <nav class="no-print">
+      <a href="../index.html">Index</a>
+      <a href="../CASE-STUDY.html">Case study</a>
+      
+      <button type="button" class="btn-print" onclick="window.print()">Print / PDF</button>
+    </nav>
+  </div>
+</header>
+<div class="wrap">
+  <div class="eyebrow">Development notes</div>
+  <p class="doc-meta"><strong>Source</strong> <code>dev/CHANGELOG-1.5.4.md</code></p>
+  <article>
+<h1>Changelog — Forms reliability, app layout, offline package &amp; SVC (1.4 → 1.5.3)</h1>
+<p><strong>Product version:</strong> <code>1.5.3</code> (see root <code>VERSION</code> for current)  </p>
+<p><strong>Runtime cache-bust:</strong> <code>app/config.js</code> → <code>1.5.3-pack-docs</code>  </p>
+<p><strong>Date:</strong> 2026-07-30  </p>
+<p><strong>Later:</strong> <strong><a href="CHANGELOG-1.5.4-circle.html">CHANGELOG-1.5.4-circle.md</a></strong> — Circle / Ellipse shape tool (+ <code>dev/patches/1.5.4-circle-shape.diff</code>).</p>
+<p>Earlier series still documented separately:</p>
+<ul>
+<li><code>CHANGELOG-1.2.0-tabs.md</code> — multi-doc tabs, session restore, form fill UX  </li>
+<li><code>CHANGELOG-1.3.0-instruction-processor.md</code> — GaProcessor / command-pattern history  </li>
+<li>**<code>CASE-STUDY.html</code>** — narrative technical case study (accomplishments, hurdles, tricks)</li>
+</ul>
+<p>This file covers work from <strong>~1.3.6 through 1.5.3</strong> (forms export/import races, folder reorg, slim package, local server shell).</p>
+<hr>
+<h2>1.5.3 — Pack docs, ship layout polish (2026-07-30)</h2>
+<p><strong>Packager / ship</strong></p>
+<ul>
+<li>Slim zip root now includes **<code>dev/</code><strong>, </strong><code>README.md</code><strong>, </strong><code>VERSION</code>** (not only <code>app\</code> + tools).</li>
+<li>Setup scripts ship under **<code>tools\</code>** (not nested <code>tools\package\</code>) for a clearer user layout.</li>
+<li>Root **<code>README.md</code><strong> / </strong><code>VERSION</code>** refreshed to match multi-tab, SVC, and setup flow.</li>
+<li>Maintainer scripts remain under repo <code>tools\package\</code> (<code>package.ps1</code> flattens into the zip).</li>
+</ul>
+<p><strong>SVC (unchanged behavior, documented in this release chain)</strong></p>
+<ul>
+<li>See 1.5.2 notes: single-instance, sticky port, <code>.url</code> file, no auto-browser.</li>
+</ul>
+<hr>
+<h2>1.5.2 — Offline setup, multi-CDN, SVC packaging (2026-07-30)</h2>
+<p>**<code>tools/package/</code>**</p>
+<table>
+<tr>
+<th>Script</th>
+<th>Role</th>
+</tr>
+<tr>
+<td><code>package.ps1</code></td>
+<td>Build slim/full zip (<code>dist\GA-PDF-Editor-*-slim-*.zip</code>)</td>
+</tr>
+<tr>
+<td><code>setup.ps1</code></td>
+<td>Download vendors + fonts; generate embeds; optional start-on-boot</td>
+</tr>
+<tr>
+<td><code>vendors.manifest.json</code></td>
+<td>Pinned versions + <strong>URL fallbacks</strong> (unpkg / npm / cdnjs before jsDelivr)</td>
+</tr>
+<tr>
+<td><code>SETUP.md</code></td>
+<td>Operator docs</td>
+</tr>
+</table>
+<p><strong>Downloads (setup)</strong></p>
+<ul>
+<li>pdfjs-dist <strong>3.11.174</strong> → <code>lib/pdfjs/</code> (<code>pdf.local.js</code> / <code>pdf.worker.local.js</code> + cmaps + standard_fonts)</li>
+<li>pdf-lib, html2canvas, tesseract.js + eng.traineddata + **file:// <code>*.embed.js</code>**</li>
+<li><strong>qpdf</strong> from npm **<code>@neslinesli93/qpdf-wasm@0.3.0</code>** + 4-line <code>window.QpdfModule</code> glue (same build as in-tree; wasm SHA matches)</li>
+<li>Google Fonts → <code>assets/fonts/</code> + generated <code>assets/css/fonts.css</code></li>
+</ul>
+<p><strong>Start-on-boot</strong></p>
+<ul>
+<li>Optional: user <strong>Startup folder</strong> shortcut (default) or <strong>HKCU Run</strong></li>
+<li><strong>No admin</strong> — localhost high port does not need elevation</li>
+<li>Working directory = package root so mongoose <code>./app</code> resolves</li>
+<li>Flags: <code>-EnableStartup</code>, <code>-DisableStartup</code>, <code>-StartupMethod Registry|StartupFolder</code></li>
+</ul>
+<p><strong>SVC packaging</strong></p>
+<ul>
+<li>Zip includes **<code>GA-PDF-Editor-SVC.exe</code>** next to <code>app\</code></li>
+</ul>
+<hr>
+<h2>1.5.1 — OCR active tab only (2026-07-30)</h2>
+<p><strong>Bug:</strong> Scan OCR walked every <code>.pageContainer</code> in the document (all tabs).  </p>
+<p><strong>Fix:</strong> Scope OCR to the <strong>active viewer</strong> (<code>getActiveViewer()</code> / <code>APP.DOM.viewer</code>).</p>
+<hr>
+<h2>1.5.0 — App folder reorg (2026-07-30)</h2>
+<pre><code>app/
+  assets/
+    css/          fonts.css, style.css
+    fonts/        *.woff2
+    icons/        favicon + PWA icons
+  js/             application source (unchanged structure)
+  lib/
+    pdfjs/        pdf.local.js, worker, cmaps/, standard_fonts/
+    pdf-lib/
+    html2canvas/
+    qpdf/
+    tesseract/
+  index.html, config.js, manifest.json, sw.js</code></pre>
+<p>All loaders and runtime paths updated (index script list, PDF.js cMap/font URLs, OCR, qpdf, manifest icons).</p>
+<hr>
+<h2>1.4.4 — Title shows numeric version only (2026-07-30)</h2>
+<p>Browser title uses <strong>semver digits only</strong> (e.g. <code>GA PDF Editor 1.5.3</code>), not the cache-bust slug (<code>-pack-docs</code>, etc.).</p>
+<hr>
+<h2>1.4.3 — Title + File menu Close (2026-07-30)</h2>
+<ul>
+<li>Version string in window title (<code>appTitle</code> + version).</li>
+<li>File menu: <strong>Close</strong> / <strong>Close All</strong> (wired to <code>GaWorkspace.closeActiveDocument</code> / <code>closeAllDocuments</code>).</li>
+</ul>
+<hr>
+<h2>1.4.2 — Forms restore race after open/refresh (2026-07-30)</h2>
+<p><strong>Bug:</strong> Form shells sometimes missing after hard refresh / session restore (intermittent).</p>
+<p><strong>Causes &amp; fixes</strong></p>
+<ul>
+<li>Removed fire-and-forget <code>setTimeout(100)</code> for <code>applyProjectData</code> — apply <strong>immediately</strong> after pages + annotation layers finish.</li>
+<li>Id collision checks scoped to <strong>this viewer</strong> (not <code>document.getElementById</code> across tabs).</li>
+<li>**<code>ensureFormsReadyForViewer</code> / <code>scheduleEnsureFormsReady</code>**: re-apply schema or re-import natives at 0 / 120 / 400 / 1000 / 2500 ms.</li>
+<li>Native re-import no longer gated on annotation-layer DOM classes (those paint async).</li>
+</ul>
+<hr>
+<h2>1.4.1 — Form embed: create vs page widget (2026-07-30)</h2>
+<p><strong>Bug signature (console):</strong></p>
+<pre><code>wrote widgets= 0  failed= N  form.getFields()= N</code></pre>
+<p>Fields were registered on the AcroForm, but <strong>page widgets never landed</strong> (or create collided with zombies).</p>
+<p><strong>Fixes</strong></p>
+<ul>
+<li>Drain / hard-reset leftover fields after strip.</li>
+<li>Safe box math (never pass <code>NaN</code> into <code>addToPage</code>).</li>
+<li><code>ga_</code> field name prefix; retry boxes; count <strong>fields with page widgets</strong>.</li>
+<li><code>embedOneFormField</code> helper.</li>
+</ul>
+<hr>
+<h2>1.4.0 — KISS form export path (2026-07-30)</h2>
+<p><strong>Problem:</strong> Live PDF export dropped forms; gapdf round-trip was the only “workaround,” then that broke too after aggressive strip/cache experiments.</p>
+<p><strong>Approach</strong></p>
+<ol>
+<li>Snapshot designer shells from the DOM.  </li>
+<li>Strip original page Widget annots + catalog AcroForm.  </li>
+<li>Create a <strong>fresh</strong> AcroForm and write snapshots.  </li>
+<li>Flat field names (no hierarchical <code>.</code> segments for pdf-lib).  </li>
+<li>Project save also re-embeds designer fields into the project PDF half.</li>
+</ol>
+<p>Related earlier attempts (1.3.8–1.3.9): formCache invalidate after strip — necessary insight, but incomplete until 1.4.0/1.4.1.</p>
+<hr>
+<h2>1.3.7 — Form multi-select group drag (2026-07-30)</h2>
+<p><strong>Bug:</strong> Marquee selected form fields, but group drag failed in Form mode.</p>
+<p><strong>Cause:</strong> CSS <code>pointer-events: none</code> on <code>.stencil-box</code> under <code>body.workspace-form</code>, and drag-engine isolation rejected non-<code>formFieldOverlay</code> elements (stencil is a group shell).</p>
+<p><strong>Fix:</strong> Stencil stays interactive/opaque in Form mode; stencil/group drag allowed through workspace isolation.</p>
+<hr>
+<h2>1.3.6 — Export: strip native widgets hard (2026-07-29)</h2>
+<p><strong>Bug:</strong> Deleted designer forms still appeared in exported PDF (orphaned page <code>/Widget</code> annots after <code>copyPages</code>).</p>
+<p><strong>Fix:</strong> Aggressive strip: <code>removeField</code> + page Annots Widget pass + catalog <code>/AcroForm</code> cleanup. Export path: strip when forms managed, then re-embed remaining designer shells.</p>
+<p>(Later refinements in 1.4.x fixed re-embed reliability.)</p>
+<hr>
+<h2>Forms lifecycle (end state as of 1.5.3)</h2>
+<table>
+<tr>
+<th>Stage</th>
+<th>Behavior</th>
+</tr>
+<tr>
+<td><strong>Open fillable PDF</strong></td>
+<td>Import natives → designer shells; hide/suppress natives when managed</td>
+</tr>
+<tr>
+<td><strong>Edit in Form mode</strong></td>
+<td>Move/resize multi-select via stencil; geometry syncs</td>
+</tr>
+<tr>
+<td>**Save <code>.gapdf</code>**</td>
+<td>Schema overlays + strip natives from embedded PDF + re-embed designers</td>
+</tr>
+<tr>
+<td><strong>Export PDF</strong></td>
+<td>Strip + re-embed from live designer shells; report widget count</td>
+</tr>
+<tr>
+<td><strong>Reopen / hard refresh</strong></td>
+<td>Immediate project apply + scheduled ensure-forms-ready</td>
+</tr>
+<tr>
+<td><strong>Delete all forms</strong></td>
+<td>Strip only → exported PDF has zero AcroForms</td>
+</tr>
+</table>
+<hr>
+<h2>SVC shell (1.5.x)</h2>
+<table>
+<tr>
+<th>Feature</th>
+<th>Detail</th>
+</tr>
+<tr>
+<td>Default URL</td>
+<td><code>http://127.0.0.1:17880/</code></td>
+</tr>
+<tr>
+<td>Single instance</td>
+<td>Named mutex; second launch exits quietly</td>
+</tr>
+<tr>
+<td>No auto-browser</td>
+<td>Startup-safe</td>
+</tr>
+<tr>
+<td>PWA entry</td>
+<td>Writes **<code>Open GA PDF Editor.url</code>** with live port</td>
+</tr>
+<tr>
+<td>Sticky port</td>
+<td>Reuses port from <code>.url</code> unless <code>--port</code> / <code>GAPDF_SVC_PORT</code></td>
+</tr>
+<tr>
+<td>Port busy</td>
+<td>MessageBox (no silent port hop — protects installed PWA origin)</td>
+</tr>
+<tr>
+<td>Working dir</td>
+<td><code>chdir</code> to EXE folder so <code>./app</code> works from Startup / Run</td>
+</tr>
+</table>
+<p>Source: <code>tools/GA-PDF-Launcher/main.c</code>.</p>
+<hr>
+<h2>Config version timeline (cache-bust strings)</h2>
+<p>Approximate <code>GA_CONFIG.version</code> progression in this arc:</p>
+<table>
+<tr>
+<th>String</th>
+<th>Theme</th>
+</tr>
+<tr>
+<td><code>1.3.6-strip-widgets-hard</code></td>
+<td>Export strip natives</td>
+</tr>
+<tr>
+<td><code>1.3.7-form-group-drag</code></td>
+<td>Stencil drag in Form mode</td>
+</tr>
+<tr>
+<td><code>1.3.8</code> / <code>1.3.9</code></td>
+<td>formCache / re-embed experiments</td>
+</tr>
+<tr>
+<td><code>1.4.0-forms-kiss</code></td>
+<td>Snapshot → strip → fresh embed</td>
+</tr>
+<tr>
+<td><code>1.4.1-form-addtopage</code></td>
+<td>Widget-on-page reliability</td>
+</tr>
+<tr>
+<td><code>1.4.2-forms-ready-race</code></td>
+<td>Restore races</td>
+</tr>
+<tr>
+<td><code>1.4.3-title-close</code></td>
+<td>Title + Close menu</td>
+</tr>
+<tr>
+<td><code>1.4.4-title-semver</code></td>
+<td>Numeric title only</td>
+</tr>
+<tr>
+<td><code>1.5.0-folder-reorg</code></td>
+<td>assets/ + lib/* packages</td>
+</tr>
+<tr>
+<td><code>1.5.1-ocr-active-tab</code></td>
+<td>OCR scope</td>
+</tr>
+<tr>
+<td><code>1.5.2-offline-setup</code></td>
+<td>package/setup scripts</td>
+</tr>
+<tr>
+<td><code>1.5.3-pack-docs</code></td>
+<td>Ship dev/README/VERSION; tools flat</td>
+</tr>
+<tr>
+<td><code>1.5.4-pack-docs</code></td>
+<td>Add Circle tool; Fix toolbar rotating with shapes</td>
+</tr>
+</table>
+<hr>
+<h2>Operator quick reference</h2>
+<pre><code># Build slim zip
+cd tools\package
+.\package.ps1
+
+# Recipient setup (from zip root)
+powershell -ExecutionPolicy Bypass -File .\tools\setup.ps1
+
+# Local server
+.\GA-PDF-Editor-SVC.exe
+# then open: Open GA PDF Editor.url  (once for PWA)</code></pre>
+  </article>
+  <p class="footer-note">Same visual language as the field journal / case study. Chrome / Edge: <strong>Print — Save as PDF</strong> (enable background graphics to keep the dark theme).</p>
+</div>
+</body>
+</html>

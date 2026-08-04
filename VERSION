@@ -1,0 +1,16 @@
+GA PDF Editor
+==============
+
+Version:     1.5.4
+Released:    2026-08-03
+Owner:       Give Academy LLC
+
+Runtime cache-bust string (app/config.js): 1.5.4-circle-shape
+
+Semantic versioning for this package:
+
+  MAJOR.MINOR.PATCH
+
+  - MAJOR — incompatible product or compliance-boundary changes
+  - MINOR — new features (backward-compatible for operators)
+  - PATCH — fixes, documentation, and small UX polish

@@ -1,0 +1,69 @@
+# Built release zips — download packages from https://give.academy/GA-PDF-Editor/
+dist/
+*.zip
+
+# ---------------------------------------------------------------------------
+# Slim source-only repo: vendored runtimes are NOT committed.
+# Restore offline libs/fonts with:
+#   powershell -ExecutionPolicy Bypass -File .\tools\package\setup.ps1
+#   (or Setup.bat / the same script after packaging)
+# ---------------------------------------------------------------------------
+
+# Vendor libraries (PDF.js, pdf-lib, tesseract, qpdf, html2canvas, cmaps, …)
+app/lib/**
+!app/lib/.gitkeep
+
+# Web fonts (setup downloads + regenerates fonts.css)
+app/assets/fonts/**
+!app/assets/fonts/.gitkeep
+app/assets/css/fonts.css
+
+# Prebuilt SVC binary (rebuild from tools/GA-PDF-Launcher; release builds ship the EXE)
+GA-PDF-Editor-SVC.exe
+tools/GA-PDF-Launcher/GA-PDF-Editor-SVC.exe
+tools/GA-PDF-Launcher/**/*.exe
+
+# Local SVC / browser residue (regenerated next to the EXE)
+Open GA PDF Editor.url
+*.url
+
+# Dependencies / tooling caches
+node_modules/
+**/node_modules/
+package-lock.json
+**/package-lock.json
+.npm/
+.cache/
+
+# OS / editor noise
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.swp
+*~
+.vscode/
+.idea/
+*.user
+*.suo
+
+# Build intermediates (SVC launcher)
+tools/GA-PDF-Launcher/**/*.o
+tools/GA-PDF-Launcher/**/*.obj
+tools/GA-PDF-Launcher/*.layout
+tools/GA-PDF-Launcher/*.dev
+tools/GA-PDF-Launcher/bin/
+tools/GA-PDF-Launcher/obj/
+*.o
+*.obj
+*.pdb
+
+# Backup / scratch trees
+_backup*/
+**/_backup*/
+
+# Case-study capture kit (Puppeteer demos) if reintroduced under dev/
+dev/case-study/demos/
+
+# Optional local env
+.env
+.env.*

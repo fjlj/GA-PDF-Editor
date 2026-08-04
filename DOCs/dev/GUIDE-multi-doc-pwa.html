@@ -1,0 +1,178 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Guide: Config, tabs, single-instance open, session restore — GA PDF Editor</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <a class="brand" href="../index.html">GA PDF Editor <span>· Docs</span></a>
+    <nav class="no-print">
+      <a href="../index.html">Index</a>
+      <a href="../CASE-STUDY.html">Case study</a>
+      
+      <button type="button" class="btn-print" onclick="window.print()">Print / PDF</button>
+    </nav>
+  </div>
+</header>
+<div class="wrap">
+  <div class="eyebrow">Development notes</div>
+  <p class="doc-meta"><strong>Source</strong> <code>dev/GUIDE-multi-doc-pwa.md</code></p>
+  <article>
+<h1>Guide: Config, tabs, single-instance open, session restore</h1>
+<p>For the GA PDF Editor personal branch (localhost C-server + PWA).</p>
+<hr>
+<h2>1. Centralized configuration &amp; cache-busting</h2>
+<h3>Files</h3>
+<ul>
+<li><code>app/config.js</code> — must load first  </li>
+<li><code>app/index.html</code> — lightweight sequential loader  </li>
+</ul>
+<h3>How it works</h3>
+<ol>
+<li>Browser loads <code>config.js</code> (sync) → <code>window.GA_CONFIG</code>  </li>
+<li>Loader appends <code>?v={GA_CONFIG.version}</code> to CSS and every script URL  </li>
+<li>Scripts load <strong>in order</strong> after <code>DOMContentLoaded</code>  </li>
+<li>When the chain finishes → <code>GaWorkspace.bootstrap()</code>  </li>
+</ol>
+<h3>Toggle tabbed mode</h3>
+<pre><code>// app/config.js
+enableTabbedMode: true,   // multi-doc tabs
+// enableTabbedMode: false, // classic single canvas</code></pre>
+<p>Also useful:</p>
+<table>
+<tr>
+<th>Key</th>
+<th>Effect</th>
+</tr>
+<tr>
+<td><code>enableFormMode</code></td>
+<td>Editor/Form switcher</td>
+</tr>
+<tr>
+<td><code>disableOCR</code></td>
+<td>Hides Scan OCR</td>
+</tr>
+<tr>
+<td><code>enableSessionRestore</code></td>
+<td>IndexedDB session</td>
+</tr>
+<tr>
+<td><code>enableLaunchQueue</code></td>
+<td>OS file → this window</td>
+</tr>
+<tr>
+<td><code>defaultZoom</code></td>
+<td>New-tab zoom (e.g. <code>1.5</code>)</td>
+</tr>
+<tr>
+<td><code>version</code></td>
+<td>Cache-bust token</td>
+</tr>
+</table>
+<p>After any JS/CSS edit in production-ish installs, **bump <code>version</code>**.</p>
+<hr>
+<h2>2. Internal tabbed UI</h2>
+<h3>Layout</h3>
+<pre><code>#docTabBar          (fixed, 32px, only if enableTabbedMode)
+#headerBar          (fixed, 40px; top: 32px when tabs on)
+#workspaceRoot
+  .doc-viewer &#215; N   (one per open document; inactive = hidden, not destroyed)</code></pre>
+<h3>State isolation</h3>
+<p>On tab switch, workspace:</p>
+<ol>
+<li>Stashes active zoom, scroll, history stacks, tool mode into the doc bag  </li>
+<li>Points <code>APP.DOM.viewer</code> at the target pane  </li>
+<li>Restores that bag + thumbnails + history UI  </li>
+</ol>
+<p>Canvases and overlays stay in the inactive pane’s DOM.</p>
+<h3>User actions</h3>
+<ul>
+<li>Click tab → activate  </li>
+<li>&#215; or middle-click → close (dirty confirm)  </li>
+<li><code>+</code> → empty tab  </li>
+<li>Drop / Open when pages exist → <strong>Append</strong> or <strong>Open as New Tab</strong>  </li>
+</ul>
+<hr>
+<h2>3. Single-instance file handling</h2>
+<h3><code>manifest.json</code></h3>
+<pre><code>&quot;launch_handler&quot;: { &quot;client_mode&quot;: &quot;focus-existing&quot; },
+&quot;file_handlers&quot;: [{
+  &quot;action&quot;: &quot;./&quot;,
+  &quot;accept&quot;: {
+    &quot;application/pdf&quot;: [&quot;.pdf&quot;],
+    &quot;application/octet-stream&quot;: [&quot;.gapdf&quot;]
+  }
+}]</code></pre>
+<h3>Runtime</h3>
+<p><code>GaWorkspace</code> registers:</p>
+<pre><code>launchQueue.setConsumer(async (params) =&gt; {
+  // params.files → FileSystemFileHandle[]
+  // open each as a tab (or replace if !enableTabbedMode)
+});</code></pre>
+<h3>Requirements</h3>
+<ul>
+<li>Served over <strong>http(s)</strong> (your C-server on localhost is fine)  </li>
+<li>App <strong>installed</strong> as PWA (or browser support for File Handling)  </li>
+<li>Chromium-based browser for full File Handling + launchQueue  </li>
+</ul>
+<hr>
+<h2>4. Session restoration (IndexedDB)</h2>
+<h3>What is stored</h3>
+<pre><code>{
+  v: 1,
+  activeId: &quot;doc-…&quot;,
+  tabs: [{
+    id, title, pdfName, zoom,
+    fileHandle,   // structured-cloneable when present
+    hasContent
+  }]
+}</code></pre>
+<p>DB name / key: <code>sessionDbName</code> / <code>sessionStoreKey</code> in config.</p>
+<h3>Permissions</h3>
+<p>Browsers require <code>queryPermission</code> / <code>requestPermission({ mode: &quot;read&quot; })</code> before <code>handle.getFile()</code> after reload.</p>
+<ul>
+<li>Quiet attempt on bootstrap  </li>
+<li>If handles exist but none restored → bottom <strong>Restore</strong> bar (user gesture)  </li>
+</ul>
+<h3>What does <strong>not</strong> restore</h3>
+<p>Files chosen only via <code>&lt;input type=&quot;file&quot;&gt;</code> usually have <strong>no</strong> <code>FileSystemFileHandle</code>, so they cannot be re-opened from disk automatically. Prefer OS “Open with” / launchQueue for restorable tabs.</p>
+<hr>
+<h2>5. Service worker (keep simple)</h2>
+<p><code>app/sw.js</code>:</p>
+<ul>
+<li>Install / activate only  </li>
+<li>Fetch = network pass-through  </li>
+<li>Clears any old caches on activate  </li>
+</ul>
+<p>Do <strong>not</strong> add cache-first strategies for this localhost workflow.</p>
+<hr>
+<h2>6. Quick verification</h2>
+<pre><code>1. Serve app/ via the C launcher (http://127.0.0.1:…)
+2. Open PDF A, annotate, open PDF B as new tab
+3. Switch A ↔ B — annotations still there
+4. Set enableTabbedMode: false, hard-refresh (new ?v=) — single canvas
+5. Install PWA, open second PDF from Explorer — same window, new tab
+6. Reload — Restore bar if needed → tabs return</code></pre>
+<hr>
+<h2>7. Module load order (reference)</h2>
+<pre><code>config.js
+→ fonts.css, style.css, manifest
+→ pdf.js libs
+→ state, idb, project-audit, history, io
+→ ui/*
+→ engine/*
+→ overlays/*
+→ interaction/*
+→ features/*
+→ workspace.js   ← bootstrap
+→ host-bridge.js</code></pre>
+  </article>
+  <p class="footer-note">Same visual language as the field journal / case study. Chrome / Edge: <strong>Print — Save as PDF</strong> (enable background graphics to keep the dark theme).</p>
+</div>
+</body>
+</html>

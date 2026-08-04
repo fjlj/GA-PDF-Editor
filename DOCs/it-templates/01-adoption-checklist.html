@@ -1,0 +1,109 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>GA PDF Editor — Adoption checklist — GA PDF Editor</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <a class="brand" href="../index.html">GA PDF Editor <span>· Docs</span></a>
+    <nav class="no-print">
+      <a href="../index.html">Index</a>
+      <a href="../CASE-STUDY.html">Case study</a>
+      
+      <button type="button" class="btn-print" onclick="window.print()">Print / PDF</button>
+    </nav>
+  </div>
+</header>
+<div class="wrap">
+  <div class="eyebrow">IT adoption template</div>
+  <p class="doc-meta"><strong>Source</strong> <code>dev/it-templates/01-adoption-checklist.md</code></p>
+  <article>
+<h1>GA PDF Editor — Adoption checklist</h1>
+<p><strong>Owner:</strong> [Team / person]  </p>
+<p><strong>Date:</strong> [YYYY-MM-DD]  </p>
+<p><strong>Target environment:</strong> [Lab | Pilot | Production]  </p>
+<p><strong>Package version:</strong> [e.g. 1.5.4]</p>
+<p>Use this to decide whether the app fits your org and what must be true before users get it.</p>
+<hr>
+<h2>1. Fit</h2>
+<ul class="task-list">
+<li class="task"><input type="checkbox" disabled> Use case is clear (annotate PDFs, fill/design AcroForms, local OCR, offline project files)</li>
+<li class="task"><input type="checkbox" disabled> Users understand <strong>final PDF</strong> flattens annotations; **<code>.gapdf</code> project** keeps layers editable</li>
+<li class="task"><input type="checkbox" disabled> Not a substitute for enterprise DMS / e-sign platform if you already standardize on one</li>
+<li class="task"><input type="checkbox" disabled> Browser baseline agreed ([Chrome | Edge | Firefox] + min version)</li>
+</ul>
+<h2>2. Deployment model (pick one)</h2>
+<ul class="task-list">
+<li class="task"><input type="checkbox" disabled> <strong>A. Local SVC + optional PWA</strong> — unzip, <code>Setup.bat</code> if slim, open <code>Open GA PDF Editor.url</code></li>
+<li class="task"><input type="checkbox" disabled> <strong>B. Intranet HTTPS</strong> — host <code>app/</code> on internal web server</li>
+<li class="task"><input type="checkbox" disabled> <strong>C. USB / share drop</strong> — full or slim zip for air-gapped / field staff</li>
+</ul>
+<p>Record choice: <strong>[ A / B / C ]</strong>  </p>
+<p>Install path / URL: <strong>[ … ]</strong></p>
+<h2>3. Network &amp; install</h2>
+<ul class="task-list">
+<li class="task"><input type="checkbox" disabled> Slim package: one-time setup may need outbound HTTPS to fetch vendors (see <code>vendors.manifest.json</code>) <strong>or</strong> ship <strong>full</strong> offline zip</li>
+<li class="task"><input type="checkbox" disabled> SVC binds <code>127.0.0.1</code> high port only (default <strong>17880</strong>) — no admin rights required</li>
+<li class="task"><input type="checkbox" disabled> Port conflicts process known (do not silently rebind if PWA is installed)</li>
+<li class="task"><input type="checkbox" disabled> Start-on-boot (user Startup / HKCU Run) approved if requested</li>
+</ul>
+<h2>4. Security &amp; compliance gate</h2>
+<ul class="task-list">
+<li class="task"><input type="checkbox" disabled> Security brief reviewed (<code>03-security-privacy-brief.md</code>)</li>
+<li class="task"><input type="checkbox" disabled> Data classification: PDFs may contain <strong>[PII / PHI / CUI / none]</strong> — handling rules attached</li>
+<li class="task"><input type="checkbox" disabled> Password-protect export (QPDF WASM) understood as <strong>client-side</strong>, not a full DRM solution</li>
+<li class="task"><input type="checkbox" disabled> “No document upload by the app” accepted (browser still talks only to localhost / your host)</li>
+</ul>
+<h2>5. Support readiness</h2>
+<ul class="task-list">
+<li class="task"><input type="checkbox" disabled> Support runbook published (<code>04-support-runbook.md</code>)</li>
+<li class="task"><input type="checkbox" disabled> Known limitations communicated (browser print quirks, OCR language pack = eng by default, etc.)</li>
+<li class="task"><input type="checkbox" disabled> Escalation path: <strong>[L2 owner / mailbox]</strong></li>
+</ul>
+<h2>6. Pilot</h2>
+<table>
+<tr>
+<th>Item</th>
+<th>Value</th>
+</tr>
+<tr>
+<td>Pilot group</td>
+<td>[names / OU]</td>
+</tr>
+<tr>
+<td>Start / end</td>
+<td>[dates]</td>
+</tr>
+<tr>
+<td>Success criteria</td>
+<td>[e.g. open/edit/save project + export PDF without data leaving device]</td>
+</tr>
+<tr>
+<td>Exit criteria</td>
+<td>[go / no-go]</td>
+</tr>
+</table>
+<ul class="task-list">
+<li class="task"><input type="checkbox" disabled> Pilot feedback captured</li>
+<li class="task"><input type="checkbox" disabled> Go / no-go signed by <strong>[name]</strong> on <strong>[date]</strong></li>
+</ul>
+<h2>7. Production</h2>
+<ul class="task-list">
+<li class="task"><input type="checkbox" disabled> Change request filed (<code>05-change-request.md</code>)</li>
+<li class="task"><input type="checkbox" disabled> Version pinned in inventory / software catalog</li>
+<li class="task"><input type="checkbox" disabled> Update process documented (replace folder + bump users’ cache via <code>config.js</code> version)</li>
+<li class="task"><input type="checkbox" disabled> Rollback package stored <strong>[path]</strong></li>
+</ul>
+<hr>
+<p><strong>Decision:</strong> [ ] Adopt  [ ] Pilot only  [ ] Decline  </p>
+<p><strong>Notes:</strong></p>
+  </article>
+  <p class="footer-note">Same visual language as the field journal / case study. Chrome / Edge: <strong>Print — Save as PDF</strong> (enable background graphics to keep the dark theme).</p>
+</div>
+</body>
+</html>

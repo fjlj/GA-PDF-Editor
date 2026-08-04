@@ -1,0 +1,225 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>GA PDF Editor — GA PDF Editor</title>
+<link rel="stylesheet" href="assets/docs.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <a class="brand" href="index.html">GA PDF Editor <span>· Docs</span></a>
+    <nav class="no-print">
+      <a href="index.html">Index</a>
+      <a href="CASE-STUDY.html">Case study</a>
+      
+      <button type="button" class="btn-print" onclick="window.print()">Print / PDF</button>
+    </nav>
+  </div>
+</header>
+<div class="wrap">
+  <div class="eyebrow">Documentation</div>
+  <p class="doc-meta"><strong>Source</strong> <code>README.md</code></p>
+  <article>
+<h1>GA PDF Editor</h1>
+<table>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+<tr>
+<td><strong>Version</strong></td>
+<td><strong>1.5.4</strong></td>
+</tr>
+<tr>
+<td><strong>Owner</strong></td>
+<td>Give Academy LLC / GA Information Technology</td>
+</tr>
+<tr>
+<td><strong>Last updated</strong></td>
+<td>2026-08-03</td>
+</tr>
+</table>
+<p>Internal <strong>offline-first</strong> PDF viewer and editor. Open PDFs or **<code>.gapdf</code><strong> projects, annotate, fill and design fillable AcroForm fields, run </strong>local OCR<strong>, and save either an editable project or a final PDF (annotations flattened; form fields remain fillable; optional password on export). Document bytes stay on the device — the app does </strong>not** upload content to a server.</p>
+<p><strong>Stack:</strong> Static HTML / CSS / vanilla JavaScript, PDF.js, pdf-lib, QPDF (WASM), html2canvas, Tesseract.js (vendored under <code>app/lib/</code>). Optional <strong>GA-PDF-Editor-SVC.exe</strong> localhost server for a clean HTTPS-free origin (PWA-friendly).</p>
+<p>See also: <strong><a href="VERSION">VERSION</a></strong> for semver notes.</p>
+<hr>
+<h2>Repository layout</h2>
+<table>
+<tr>
+<th>Path</th>
+<th>Role</th>
+</tr>
+<tr>
+<td>**<code>app/</code>**</td>
+<td>Web application (<code>index.html</code>, <code>js/</code>, <code>assets/</code>, <code>lib/</code>)</td>
+</tr>
+<tr>
+<td>**<code>GA-PDF-Editor-SVC.exe</code>**</td>
+<td>Local static server (<code>http://127.0.0.1:17880</code>, serves <code>./app</code>)</td>
+</tr>
+<tr>
+<td>**<code>tools/package/</code>**</td>
+<td>Maintainer packager + setup scripts (source)</td>
+</tr>
+<tr>
+<td>**<code>tools/GA-PDF-Launcher/</code>**</td>
+<td>SVC.exe C source</td>
+</tr>
+<tr>
+<td>**<code>dev/</code>**</td>
+<td>Design notes, changelogs, multi-doc PWA guide (Markdown sources)</td>
+</tr>
+<tr>
+<td>**<code>dev/it-templates/</code>**</td>
+<td>IT adoption Markdown (edit these) — checklists, runbooks, security brief, change request</td>
+</tr>
+<tr>
+<td>**<code>DOCs/</code>**</td>
+<td>Print-friendly HTML pack shipped in the zip: case study, <code>it-templates/</code>, guides (<code>tools\render-docs.ps1</code>)</td>
+</tr>
+<tr>
+<td>**<code>dist/</code>**</td>
+<td>Built zip packages (generated)</td>
+</tr>
+</table>
+<hr>
+<h2>Run (developer tree)</h2>
+<ol>
+<li>Prefer: double-click **<code>GA-PDF-Editor-SVC.exe</code><strong> (listens on </strong>:17880**, no browser auto-open).  </li>
+<li>Open **<code>Open GA PDF Editor.url</code>** once (created next to the EXE) and install as a PWA if desired.  </li>
+<li>Or open <code>app/index.html</code> via any static HTTP server / <code>file://</code> (OCR + password-protect need embeds on <code>file://</code>).</li>
+</ol>
+<p>Port override: <code>GA-PDF-Editor-SVC.exe --port 27991</code> or env <code>GAPDF_SVC_PORT</code>.</p>
+<hr>
+<h2>Slim package (ship without large vendors)</h2>
+<p>Maintainers (full tree with libs present):</p>
+<pre><code>cd tools\package
+.\package.ps1                  # dist\GA-PDF-Editor-*-slim-*.zip
+.\package.ps1 -IncludeFullLibs # full offline zip</code></pre>
+<p><strong>Zip root layout:</strong></p>
+<pre><code>GA-PDF-Editor-SVC.exe
+Setup.bat       double-click me (slim package)
+app\
+tools\          setup.ps1, SETUP.md, vendors.manifest.json  (recipient path)
+tools\package\  package.ps1 + setup sources (re-pack from this tree)
+tools\render-docs.ps1   regenerate DOCs\ HTML from Markdown
+dev\            notes / changelogs / it-templates (Markdown)
+DOCs\           print HTML pack (case study, it-templates HTML, guides)
+README.md
+VERSION
+SETUP-FIRST.txt</code></pre>
+<p>Recipients: **double-click <code>Setup.bat</code>** at the zip root.</p>
+<p>Setup downloads PDF.js, pdf-lib, html2canvas, tesseract, qpdf, Google Fonts; can enable <strong>start-on-boot</strong> for the SVC (user Startup folder or HKCU Run — <strong>no admin</strong> required). Details: <code>tools/SETUP.md</code> in the zip.</p>
+<hr>
+<h2>Key capabilities</h2>
+<table>
+<tr>
+<th>Area</th>
+<th>Highlights</th>
+</tr>
+<tr>
+<td><strong>Tabs</strong></td>
+<td>Multi-document workspace (optional via <code>config.js</code>)</td>
+</tr>
+<tr>
+<td><strong>Workspaces</strong></td>
+<td>Editor (annotate + fill) vs Form (design fields)</td>
+</tr>
+<tr>
+<td><strong>Fillable forms</strong></td>
+<td>Designer shells; export re-embeds AcroForms; sticky geometry</td>
+</tr>
+<tr>
+<td><strong>Passwords</strong></td>
+<td>Open password dialog; optional export protect (QPDF WASM)</td>
+</tr>
+<tr>
+<td><strong>History</strong></td>
+<td>Undo / redo (command pattern)</td>
+</tr>
+<tr>
+<td><strong>OCR</strong></td>
+<td>Tesseract.js offline; <strong>active tab only</strong></td>
+</tr>
+<tr>
+<td><strong>Project save</strong></td>
+<td>Real PDF + appended gzip JSON (<code>.gapdf</code>)</td>
+</tr>
+<tr>
+<td><strong>Final PDF</strong></td>
+<td>Flatten annotations; keep fields fillable; optional encrypt</td>
+</tr>
+<tr>
+<td><strong>PWA</strong></td>
+<td><code>manifest.json</code>, install-only SW on HTTP(S)</td>
+</tr>
+</table>
+<hr>
+<h2>Deploy options</h2>
+<table>
+<tr>
+<th>Path</th>
+<th>How</th>
+</tr>
+<tr>
+<td><strong>Local SVC + PWA</strong></td>
+<td>Unzip → double-click <code>Setup.bat</code> (if slim) → open <code>.url</code> once</td>
+</tr>
+<tr>
+<td><strong>Intranet HTTPS</strong></td>
+<td>Host <code>app/</code> on your web server</td>
+</tr>
+<tr>
+<td><strong>USB / share</strong></td>
+<td>Slim or full zip from <code>tools\package\package.ps1</code></td>
+</tr>
+</table>
+<hr>
+<h2>Documentation HTML (print / PDF)</h2>
+<p><strong>Source of truth is Markdown.</strong> Edit the <code>.md</code> files in the tree, then regenerate HTML for browsing or <strong>Print → Save as PDF</strong> (no npm; pure PowerShell).</p>
+<table>
+<tr>
+<th>What you edit</th>
+<th>What you open after render</th>
+</tr>
+<tr>
+<td>**<code>dev/it-templates/*.md</code>**</td>
+<td>**<code>DOCs/it-templates/*.html</code>** (IT pack: adoption, deploy, security, support, change request)</td>
+</tr>
+<tr>
+<td><code>README.md</code>, <code>dev/*.md</code>, <code>tools/package/SETUP.md</code>, …</td>
+<td>Matching paths under **<code>DOCs/</code>**</td>
+</tr>
+<tr>
+<td>**<code>DOCs/CASE-STUDY.html</code>**</td>
+<td>Lives in DOCs (field journal; not generated from Markdown)</td>
+</tr>
+</table>
+<h3>IT templates → print packet</h3>
+<p>Internal IT can customize the light adoption templates under **<code>dev/it-templates/</code>** (fill in bracketed fields, drop into ServiceNow/wiki, etc.). When you want browser-ready / printable copies:</p>
+<ol>
+<li>Edit the <code>.md</code> files in **<code>dev/it-templates/</code>** (and any other package docs you care about).  </li>
+<li>From the package root, regenerate HTML:</li>
+</ol>
+<pre><code>powershell -ExecutionPolicy Bypass -File .\tools\render-docs.ps1
+# full wipe + rebuild:
+powershell -ExecutionPolicy Bypass -File .\tools\render-docs.ps1 -Clean</code></pre>
+<ol>
+<li>Open **<code>DOCs\index.html</code><strong> or jump straight to </strong><code>DOCs\it-templates\</code>**.  </li>
+<li>Use the page <strong>Print / PDF</strong> button (or Ctrl+P → <strong>Save as PDF</strong>). Enable background graphics in the print dialog if you want the dark case-study theme in the PDF.</li>
+</ol>
+<p>Do <strong>not</strong> hand-edit files under **<code>DOCs/</code>** if you plan to re-run the renderer — <code>-Clean</code> regenerates that tree from Markdown.</p>
+<h2>Versioning</h2>
+<ul>
+<li>Product / package: **<code>VERSION</code><strong> and this README (semver </strong>1.5.4**).  </li>
+<li>Browser cache-bust: <code>app/config.js</code> → <code>version</code> (may include a short slug after the numbers).  </li>
+<li>Title bar shows the numeric part only (e.g. <code>GA PDF Editor 1.5.4</code>).</li>
+</ul>
+  </article>
+  <p class="footer-note">Same visual language as the field journal / case study. Chrome / Edge: <strong>Print — Save as PDF</strong> (enable background graphics to keep the dark theme).</p>
+</div>
+</body>
+</html>

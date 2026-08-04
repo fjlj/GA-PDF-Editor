@@ -1,0 +1,6 @@
+# Vendored third-party C (inflates GitHub language stats if counted as project code)
+tools/GA-PDF-Launcher/libs/mongoose.c linguist-vendored
+tools/GA-PDF-Launcher/libs/mongoose.h linguist-vendored
+
+# Generated docs HTML — keep, but do not dominate language bar
+DOCs/** linguist-documentation

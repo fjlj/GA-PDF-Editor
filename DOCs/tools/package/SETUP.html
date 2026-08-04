@@ -1,0 +1,144 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Offline setup (slim package) — GA PDF Editor</title>
+<link rel="stylesheet" href="../../assets/docs.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <a class="brand" href="../../index.html">GA PDF Editor <span>· Docs</span></a>
+    <nav class="no-print">
+      <a href="../../index.html">Index</a>
+      <a href="../../CASE-STUDY.html">Case study</a>
+      
+      <button type="button" class="btn-print" onclick="window.print()">Print / PDF</button>
+    </nav>
+  </div>
+</header>
+<div class="wrap">
+  <div class="eyebrow">Tools / setup</div>
+  <p class="doc-meta"><strong>Source</strong> <code>tools/package/SETUP.md</code></p>
+  <article>
+<h1>Offline setup (slim package)</h1>
+<p>GA PDF Editor can ship <strong>without</strong> large vendor libraries and web fonts.</p>
+<p>Recipients run setup once (network required), then the app works offline — including <code>file://</code>.</p>
+<h2>Quick start</h2>
+<p><strong>Easiest:</strong> double-click **<code>Setup.bat</code>** at the package root (next to the EXE).</p>
+<pre><code># Same thing from PowerShell (package root):
+powershell -ExecutionPolicy Bypass -File .\tools\setup.ps1</code></pre>
+<p>Setup starts <code>GA-PDF-Editor-SVC.exe</code> when present so **<code>Open GA PDF Editor.url</code>** is</p>
+<p>written next to the EXE. Open that shortcut (or <code>app\index.html</code>).</p>
+<h2>What setup downloads</h2>
+<table>
+<tr>
+<th>Target</th>
+<th>Source</th>
+</tr>
+<tr>
+<td><code>lib/pdfjs/</code></td>
+<td>npm <code>pdfjs-dist@3.11.174</code> (renamed to <code>pdf.local.js</code> / <code>pdf.worker.local.js</code> + cmaps + standard_fonts)</td>
+</tr>
+<tr>
+<td><code>lib/pdf-lib/</code></td>
+<td>jsDelivr <code>pdf-lib@1.17.1</code></td>
+</tr>
+<tr>
+<td><code>lib/html2canvas/</code></td>
+<td>jsDelivr <code>html2canvas@1.4.1</code></td>
+</tr>
+<tr>
+<td><code>lib/tesseract/</code></td>
+<td>jsDelivr tesseract.js 5.x + eng.traineddata + <strong>file:// embeds</strong></td>
+</tr>
+<tr>
+<td><code>assets/fonts/</code> + <code>assets/css/fonts.css</code></td>
+<td>Google Fonts CSS API (woff2)</td>
+</tr>
+<tr>
+<td><code>lib/qpdf/</code></td>
+<td>npm <code>@neslinesli93/qpdf-wasm@0.3.0</code> + 4-line <code>window.QpdfModule</code> patch</td>
+</tr>
+</table>
+<p>Pinned URLs live in <code>vendors.manifest.json</code>. Each asset lists <strong>multiple mirrors</strong></p>
+<p>(unpkg / npm / cdnjs first; jsDelivr last) so a single blocked CDN does not kill setup.</p>
+<h2>Password protect (qpdf)</h2>
+<p>This is <strong>not</strong> something we invent. It is the public package</p>
+<p>[<code>@neslinesli93/qpdf-wasm</code>](https://www.npmjs.com/package/@neslinesli93/qpdf-wasm)</p>
+<p>(qpdf CLI compiled with Emscripten). The app already used that build; the only</p>
+<p>local tweak is exposing <code>window.QpdfModule</code> for classic <code>&lt;script&gt;</code> tags</p>
+<p>(comment in-tree still said “CCS PDF Editor”).</p>
+<p><code>setup.ps1</code> downloads it automatically and regenerates <code>qpdf.wasm.embed.js</code></p>
+<p>for <code>file://</code> offline use. Optional override:</p>
+<pre><code>.\tools\setup.ps1 -QpdfSource C:\path\to\folder\with\qpdf.js+qpdf.wasm</code></pre>
+<h2>Local server shell (<code>GA-PDF-Editor-SVC.exe</code>)</h2>
+<p>The slim/full zip includes **<code>GA-PDF-Editor-SVC.exe</code> next to <code>app\</code>**. It is a tiny</p>
+<p>localhost HTTP server (default <code>http://127.0.0.1:17880</code>) that serves <code>./app</code>.</p>
+<p><strong>No administrator rights</strong> are required: it binds a high port on <code>127.0.0.1</code> only.</p>
+<p>User Startup folder / <code>HKCU\...\Run</code> are also non-elevated — do <strong>not</strong> force setup to run as admin.</p>
+<p>**<code>setup.ps1</code> starts the SVC** at the end (if the EXE is present) so the <code>.url</code></p>
+<p>shortcut exists when setup finishes. First-run setup only <strong>assumes</strong> the default</p>
+<p>port is free; the authoritative URL is always whatever the SVC wrote into the <code>.url</code>.</p>
+<p>Port override (manual / advanced):</p>
+<pre><code>GA-PDF-Editor-SVC.exe --port 27991
+set GAPDF_SVC_PORT=27991</code></pre>
+<p>The service <strong>does not open a browser</strong> (so logon startup stays quiet). On bind it</p>
+<p>writes **<code>Open GA PDF Editor.url</code>** next to the EXE with the live port — open that</p>
+<p>once, then use the browser’s <strong>Install app</strong> / PWA install.</p>
+<p><strong>Sticky port / PWA:</strong> the next start reuses the port from that <code>.url</code> file (unless</p>
+<p>you pass <code>--port</code> / <code>GAPDF_SVC_PORT</code>). It will <strong>not</strong> silently pick another port</p>
+<p>(that would break an installed PWA origin). If the preferred port is busy, you get</p>
+<p>a <strong>MessageBox</strong> explaining the conflict and how to free the port or intentionally</p>
+<p>move (and re-install the PWA).</p>
+<p>Second launch uses a <strong>mutex</strong> (single instance) and exits quietly.</p>
+<p>Setup can also register it to start at <strong>user logon</strong> (no admin):</p>
+<ul>
+<li>Default: shortcut in the user’s <strong>Startup</strong> folder (WorkingDirectory = package root)</li>
+<li>Or: <code>HKCU\...\Run</code> via <code>-StartupMethod Registry</code></li>
+</ul>
+<pre><code>.\tools\setup.ps1                          # prompts: start on boot? [y/N]
+.\tools\setup.ps1 -EnableStartup           # no prompt, enable
+.\tools\setup.ps1 -DisableStartup -SkipLibs -SkipFonts   # remove registration</code></pre>
+<h2>Flags</h2>
+<pre><code>.\tools\setup.ps1 -AppRoot D:\ship\app
+.\tools\setup.ps1 -SkipFonts
+.\tools\setup.ps1 -SkipLibs
+.\tools\setup.ps1 -QpdfSource ...\lib\qpdf
+.\tools\setup.ps1 -EnableStartup
+.\tools\setup.ps1 -DisableStartup -SkipLibs -SkipFonts
+.\tools\setup.ps1 -EnableStartup -StartupMethod Registry</code></pre>
+<h2>Packaging (maintainers)</h2>
+<p>From a <strong>full</strong> developer tree (scripts live under <code>tools\package\</code> in the repo):</p>
+<pre><code>cd tools\package
+.\package.ps1                  # slim zip (ships tools\setup.ps1 etc. at zip root)
+.\package.ps1 -IncludeFullLibs # full offline zip with libs already filled</code></pre>
+<p><code>-IncludeQpdf</code> is optional legacy; setup fetches qpdf from npm by default.</p>
+<p><strong>Shipped zip layout</strong> (user-facing):</p>
+<pre><code>GA-PDF-Editor-SVC.exe
+Setup.bat            double-click me (slim package)
+app\
+tools\
+  setup.ps1
+  SETUP.md
+  vendors.manifest.json
+dev\                 design notes / changelogs
+README.md
+VERSION
+SETUP-FIRST.txt</code></pre>
+<h2>Regenerating embeds only</h2>
+<p>If you already have binary vendors and only need file:// base64 wrappers, re-run setup</p>
+<p>(it regenerates <code>*.embed.js</code> from the downloaded binaries every time).</p>
+<h2>Requirements</h2>
+<ul>
+<li>Windows PowerShell 5.1+ (or PowerShell 7)</li>
+<li>Network access once</li>
+<li><code>tar</code> (built into modern Windows) for extracting npm tarballs</li>
+</ul>
+  </article>
+  <p class="footer-note">Same visual language as the field journal / case study. Chrome / Edge: <strong>Print — Save as PDF</strong> (enable background graphics to keep the dark theme).</p>
+</div>
+</body>
+</html>

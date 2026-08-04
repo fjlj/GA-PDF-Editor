@@ -1,0 +1,17 @@
+﻿GA PDF Editor - package
+=======================
+Version: 1.5.3
+Built:   2026-07-31
+
+SLIM package (libs + fonts not included).
+
+1. Unzip anywhere.
+2. Double-click Setup.bat
+
+   Downloads vendors/fonts, starts GA-PDF-Editor-SVC.exe (so
+   'Open GA PDF Editor.url' is written; default port 17880 assumed free),
+   and can enable start-on-boot.
+
+3. Open 'Open GA PDF Editor.url' once (install PWA if desired).
+
+See tools\SETUP.md for details.

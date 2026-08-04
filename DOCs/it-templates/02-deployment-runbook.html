@@ -1,0 +1,175 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>GA PDF Editor — Deployment runbook — GA PDF Editor</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <a class="brand" href="../index.html">GA PDF Editor <span>· Docs</span></a>
+    <nav class="no-print">
+      <a href="../index.html">Index</a>
+      <a href="../CASE-STUDY.html">Case study</a>
+      
+      <button type="button" class="btn-print" onclick="window.print()">Print / PDF</button>
+    </nav>
+  </div>
+</header>
+<div class="wrap">
+  <div class="eyebrow">IT adoption template</div>
+  <p class="doc-meta"><strong>Source</strong> <code>dev/it-templates/02-deployment-runbook.md</code></p>
+  <article>
+<h1>GA PDF Editor — Deployment runbook</h1>
+<p><strong>Version covered:</strong> [e.g. 1.5.4]  </p>
+<p><strong>Last updated:</strong> [YYYY-MM-DD]  </p>
+<p><strong>Maintainer:</strong> [IT owner]</p>
+<hr>
+<h2>Package types</h2>
+<table>
+<tr>
+<th>Type</th>
+<th>Contents</th>
+<th>When</th>
+</tr>
+<tr>
+<td><strong>Slim</strong></td>
+<td>App + SVC + setup scripts; vendors downloaded once</td>
+<td>Normal intranet / first install with network</td>
+</tr>
+<tr>
+<td><strong>Full</strong></td>
+<td>Slim + vendored <code>app/lib</code> + fonts</td>
+<td>Offline / locked-down networks</td>
+</tr>
+</table>
+<p>Build (maintainers only):</p>
+<pre><code>cd tools\package
+.\package.ps1                  # slim zip → dist\
+.\package.ps1 -IncludeFullLibs # full zip</code></pre>
+<hr>
+<h2>Path A — Desktop / SVC (recommended default)</h2>
+<h3>Install</h3>
+<ol>
+<li>Unzip to a fixed path, e.g. <code>C:\Apps\GA-PDF-Editor\</code> (or user profile path).</li>
+<li>If slim: double-click **<code>Setup.bat</code>** (or <code>tools\setup.ps1</code>).</li>
+<li>Confirm **<code>GA-PDF-Editor-SVC.exe</code>** is running (listens on <code>127.0.0.1:17880</code> by default).</li>
+<li>Open **<code>Open GA PDF Editor.url</code>** once.</li>
+<li>Optional: browser <strong>Install app</strong> (PWA) for a pinned window.</li>
+</ol>
+<h3>Port / instance</h3>
+<table>
+<tr>
+<th>Setting</th>
+<th>How</th>
+</tr>
+<tr>
+<td>Default port</td>
+<td><code>17880</code></td>
+</tr>
+<tr>
+<td>Override</td>
+<td><code>GA-PDF-Editor-SVC.exe --port N</code> or env <code>GAPDF_SVC_PORT</code></td>
+</tr>
+<tr>
+<td>Single instance</td>
+<td>Mutex — second launch exits quietly</td>
+</tr>
+<tr>
+<td>Sticky port</td>
+<td>Reuses port from existing <code>.url</code> (PWA-safe)</td>
+</tr>
+</table>
+<h3>Start at logon (optional, no admin)</h3>
+<p>During setup or via:</p>
+<pre><code>.\tools\setup.ps1 -EnableStartup
+# or -StartupMethod Registry|StartupFolder
+# disable: -DisableStartup</code></pre>
+<h3>Update</h3>
+<ol>
+<li>Stop SVC if running (exit tray/process as your policy allows).</li>
+<li>Replace package files (keep user projects elsewhere — they are not inside <code>app\</code>).</li>
+<li>Ensure <code>app\config.js</code> <code>version</code> string changed so browsers re-fetch scripts.</li>
+<li>Start SVC; smoke-test open PDF → edit → save project + PDF.</li>
+</ol>
+<h3>Rollback</h3>
+<ol>
+<li>Stop SVC.</li>
+<li>Restore previous unzip folder from <strong>[backup path]</strong>.</li>
+<li>Start SVC; open <code>.url</code>.</li>
+</ol>
+<hr>
+<h2>Path B — Intranet HTTPS</h2>
+<ol>
+<li>Publish contents of <code>app/</code> to <code>https://[internal-host]/[path]/</code>.</li>
+<li>Ensure MIME types for <code>.wasm</code>, <code>.woff2</code>, worker JS are correct.</li>
+<li>Service worker / PWA: install only over HTTPS (or localhost).</li>
+<li>OCR + password paths: prefer HTTP(S) with real files under <code>lib/</code>; <code>file://</code> needs embed bundles (setup generates them).</li>
+</ol>
+<hr>
+<h2>Path C — USB / share</h2>
+<ol>
+<li>Prefer <strong>full</strong> package.</li>
+<li>Users run SVC from the extracted folder (writable location; avoid execute-from-zip).</li>
+<li>Document that antivirus may quarantine WASM / EXE on first run — allowlist process if approved.</li>
+</ol>
+<hr>
+<h2>Smoke test (every deploy)</h2>
+<ul class="task-list">
+<li class="task"><input type="checkbox" disabled> Open a multi-page PDF</li>
+<li class="task"><input type="checkbox" disabled> Add text + rectangle + circle; undo/redo</li>
+<li class="task"><input type="checkbox" disabled> Save <strong>Project</strong> (<code>.gapdf</code>) and reopen</li>
+<li class="task"><input type="checkbox" disabled> Save <strong>PDF</strong> (annotations flattened)</li>
+<li class="task"><input type="checkbox" disabled> Optional: Form workspace — add a text field, export fillable PDF, reopen and fill</li>
+<li class="task"><input type="checkbox" disabled> Optional: OCR on a scanned page (active tab only)</li>
+<li class="task"><input type="checkbox" disabled> Optional: password protect on export</li>
+</ul>
+<hr>
+<h2>Uninstall</h2>
+<ol>
+<li>Disable start-on-boot if enabled.</li>
+<li>Stop/kill <code>GA-PDF-Editor-SVC.exe</code>.</li>
+<li>Delete install folder.</li>
+<li>Clear browser site data for <code>http://127.0.0.1:17880</code> (or your host) if PWA was installed.</li>
+<li>Optional: clear app IndexedDB session keys if policy requires (browser site data).</li>
+</ol>
+<hr>
+<h2>Inventory fields (example)</h2>
+<table>
+<tr>
+<th>Field</th>
+<th>Example</th>
+</tr>
+<tr>
+<td>Product</td>
+<td>GA PDF Editor</td>
+</tr>
+<tr>
+<td>Vendor</td>
+<td>Give Academy LLC (internal)</td>
+</tr>
+<tr>
+<td>Version</td>
+<td>1.5.4</td>
+</tr>
+<tr>
+<td>Path</td>
+<td><code>C:\Apps\GA-PDF-Editor\</code></td>
+</tr>
+<tr>
+<td>Port</td>
+<td>17880</td>
+</tr>
+<tr>
+<td>Owner</td>
+<td>[team]</td>
+</tr>
+</table>
+  </article>
+  <p class="footer-note">Same visual language as the field journal / case study. Chrome / Edge: <strong>Print — Save as PDF</strong> (enable background graphics to keep the dark theme).</p>
+</div>
+</body>
+</html>

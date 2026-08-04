@@ -1,0 +1,232 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>GA PDF Editor — Security &amp; privacy brief — GA PDF Editor</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <a class="brand" href="../index.html">GA PDF Editor <span>· Docs</span></a>
+    <nav class="no-print">
+      <a href="../index.html">Index</a>
+      <a href="../CASE-STUDY.html">Case study</a>
+      
+      <button type="button" class="btn-print" onclick="window.print()">Print / PDF</button>
+    </nav>
+  </div>
+</header>
+<div class="wrap">
+  <div class="eyebrow">IT adoption template</div>
+  <p class="doc-meta"><strong>Source</strong> <code>dev/it-templates/03-security-privacy-brief.md</code></p>
+  <article>
+<h1>GA PDF Editor — Security &amp; privacy brief</h1>
+<p><strong>Audience:</strong> Security / compliance / IT risk  </p>
+<p><strong>Product version:</strong> [e.g. 1.5.4]  </p>
+<p><strong>Date:</strong> [YYYY-MM-DD]  </p>
+<p><strong>Classification of this brief:</strong> [Internal]</p>
+<hr>
+<h2>One-liner</h2>
+<p>Client-side PDF viewer/editor. Document content is processed <strong>in the browser</strong> (and optional local SVC). The application <strong>does not upload PDF contents to a remote application backend</strong>.</p>
+<hr>
+<h2>Architecture snapshot</h2>
+<table>
+<tr>
+<th>Component</th>
+<th>Role</th>
+<th>Trust boundary</th>
+</tr>
+<tr>
+<td><code>app/</code> static assets</td>
+<td>UI + PDF.js + pdf-lib + WASM helpers</td>
+<td>Served from disk or your HTTPS host</td>
+</tr>
+<tr>
+<td><code>GA-PDF-Editor-SVC.exe</code></td>
+<td>Localhost static file server only</td>
+<td>Binds <strong>127.0.0.1</strong>, not LAN by design</td>
+</tr>
+<tr>
+<td>Browser</td>
+<td>Renders PDF, runs JS, holds open docs</td>
+<td>User workstation</td>
+</tr>
+<tr>
+<td>IndexedDB (optional)</td>
+<td>Session restore / cached PDF bytes</td>
+<td>Same origin (localhost or your host)</td>
+</tr>
+<tr>
+<td>Setup script</td>
+<td>One-time vendor download (slim package)</td>
+<td>Needs outbound HTTPS once</td>
+</tr>
+</table>
+<hr>
+<h2>Data handling</h2>
+<table>
+<tr>
+<th>Question</th>
+<th>Answer</th>
+</tr>
+<tr>
+<td>Does the app send PDFs to the vendor cloud?</td>
+<td><strong>No</strong> application cloud upload path</td>
+</tr>
+<tr>
+<td>Where do edits live until save?</td>
+<td>In-memory / DOM + optional IndexedDB session</td>
+</tr>
+<tr>
+<td>Project format</td>
+<td>Real PDF bytes + appended gzip JSON (<code>.gapdf</code>) on disk chosen by user</td>
+</tr>
+<tr>
+<td>Final PDF</td>
+<td>Annotations flattened client-side; AcroForm fields can remain fillable</td>
+</tr>
+<tr>
+<td>Password protect</td>
+<td>QPDF compiled to WASM — encryption runs locally in the browser</td>
+</tr>
+<tr>
+<td>Telemetry / analytics</td>
+<td>None built into the product as shipped (verify you did not add any)</td>
+</tr>
+<tr>
+<td>Crash reports</td>
+<td>None built-in</td>
+</tr>
+</table>
+<p><strong>Still true:</strong> the <strong>browser</strong> and <strong>OS</strong> may have their own sync, enterprise DLP agents, or print drivers. Treat workstation policy as the outer control.</p>
+<hr>
+<h2>Network</h2>
+<table>
+<tr>
+<th>Path</th>
+<th>Expected traffic</th>
+</tr>
+<tr>
+<td>After full offline install</td>
+<td>None required for normal edit/save</td>
+</tr>
+<tr>
+<td>Slim first-time setup</td>
+<td>HTTPS to mirrors listed in <code>vendors.manifest.json</code> (npm/unpkg/cdnjs/jsDelivr)</td>
+</tr>
+<tr>
+<td>SVC mode</td>
+<td>Loopback HTTP only (<code>127.0.0.1:port</code>)</td>
+</tr>
+<tr>
+<td>Intranet host mode</td>
+<td>Users load assets from <strong>your</strong> origin only</td>
+</tr>
+</table>
+<hr>
+<h2>Privilege model</h2>
+<ul>
+<li>SVC and start-on-boot use <strong>per-user</strong>, non-elevated mechanisms.</li>
+<li>No service account, no admin install required for default layout.</li>
+<li>EXE is a small embedded HTTP server (mongoose-based launcher tree under <code>tools/GA-PDF-Launcher/</code>). Treat like any unsigned/internally signed binary: code-sign if your standard requires it.</li>
+</ul>
+<hr>
+<h2>Threat notes (honest)</h2>
+<table>
+<tr>
+<th>Topic</th>
+<th>Note</th>
+</tr>
+<tr>
+<td>XSS / malicious PDF</td>
+<td>PDF.js and HTML overlays reduce but do not eliminate browser risks; keep browser patched</td>
+</tr>
+<tr>
+<td>“Redact” line tool</td>
+<td>Visual redaction bar — <strong>not</strong> certified secure redaction; use approved tools for sensitive sanitization</td>
+</tr>
+<tr>
+<td>Password export</td>
+<td>Protects the file at rest; key strength depends on user password and qpdf defaults</td>
+</tr>
+<tr>
+<td>Supply chain</td>
+<td>Vendors pinned in manifest; prefer full offline package for locked environments</td>
+</tr>
+<tr>
+<td>Multi-tenant SaaS</td>
+<td><strong>Not</strong> a multi-tenant hosted product</td>
+</tr>
+</table>
+<hr>
+<h2>Recommended controls</h2>
+<ul class="task-list">
+<li class="task"><input type="checkbox" disabled> Prefer full offline package on highly restricted networks</li>
+<li class="task"><input type="checkbox" disabled> Allowlist <code>GA-PDF-Editor-SVC.exe</code> path if AV blocks WASM/EXE</li>
+<li class="task"><input type="checkbox" disabled> Document that loopback port is intentional; block LAN bind if you fork the server</li>
+<li class="task"><input type="checkbox" disabled> Store user projects on managed drives with existing DLP/backup</li>
+<li class="task"><input type="checkbox" disabled> For regulated data, pair with existing classification / retention policy</li>
+<li class="task"><input type="checkbox" disabled> Review before enabling session restore of PDF bytes on shared kiosks (<code>config.js</code> flags)</li>
+</ul>
+<hr>
+<h2>Config flags that affect privacy (examples)</h2>
+<p>See <code>app/config.js</code> and <code>dev/GUIDE-multi-doc-pwa.md</code>:</p>
+<table>
+<tr>
+<th>Flag</th>
+<th>Risk-relevant effect</th>
+</tr>
+<tr>
+<td><code>enableSessionRestore</code></td>
+<td>May persist tab state across restarts</td>
+</tr>
+<tr>
+<td><code>persistPdfBytesInSession</code></td>
+<td>May store PDF bytes in IndexedDB</td>
+</tr>
+<tr>
+<td><code>maxSessionPdfBytes</code></td>
+<td>Caps cached size</td>
+</tr>
+<tr>
+<td><code>disableOCR</code></td>
+<td>Removes local OCR path if undesired</td>
+</tr>
+</table>
+<hr>
+<h2>Sign-off</h2>
+<table>
+<tr>
+<th>Role</th>
+<th>Name</th>
+<th>Date</th>
+<th>Result</th>
+</tr>
+<tr>
+<td>Security</td>
+<td></td>
+<td></td>
+<td>[ ] Accept [ ] Accept with conditions [ ] Reject</td>
+</tr>
+<tr>
+<td>IT owner</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Business owner</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</table>
+<p><strong>Conditions / residual risk:</strong></p>
+  </article>
+  <p class="footer-note">Same visual language as the field journal / case study. Chrome / Edge: <strong>Print — Save as PDF</strong> (enable background graphics to keep the dark theme).</p>
+</div>
+</body>
+</html>

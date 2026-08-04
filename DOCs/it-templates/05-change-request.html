@@ -1,0 +1,191 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Change request — GA PDF Editor — GA PDF Editor</title>
+<link rel="stylesheet" href="../assets/docs.css">
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <a class="brand" href="../index.html">GA PDF Editor <span>· Docs</span></a>
+    <nav class="no-print">
+      <a href="../index.html">Index</a>
+      <a href="../CASE-STUDY.html">Case study</a>
+      
+      <button type="button" class="btn-print" onclick="window.print()">Print / PDF</button>
+    </nav>
+  </div>
+</header>
+<div class="wrap">
+  <div class="eyebrow">IT adoption template</div>
+  <p class="doc-meta"><strong>Source</strong> <code>dev/it-templates/05-change-request.md</code></p>
+  <article>
+<h1>Change request — GA PDF Editor</h1>
+<p><strong>CR ID:</strong> [auto / ticket #]  </p>
+<p><strong>Requested by:</strong> [name]  </p>
+<p><strong>Date:</strong> [YYYY-MM-DD]  </p>
+<p><strong>Desired window:</strong> [date/time + timezone]</p>
+<hr>
+<h2>Summary</h2>
+<p>Deploy / update <strong>GA PDF Editor</strong> version <strong>[x.y.z]</strong> for <strong>[scope: pilot OU / all staff / lab]</strong>.</p>
+<h2>Business reason</h2>
+<p>[e.g. Offline PDF annotation and fillable form design without cloud upload; replace ad-hoc tools.]</p>
+<h2>Change type</h2>
+<ul class="task-list">
+<li class="task"><input type="checkbox" disabled> New install  </li>
+<li class="task"><input type="checkbox" disabled> Version upgrade  </li>
+<li class="task"><input type="checkbox" disabled> Config-only change  </li>
+<li class="task"><input type="checkbox" disabled> Rollback  </li>
+<li class="task"><input type="checkbox" disabled> Decommission  </li>
+</ul>
+<h2>Scope</h2>
+<table>
+<tr>
+<th>Item</th>
+<th>Detail</th>
+</tr>
+<tr>
+<td>Devices / users</td>
+<td></td>
+</tr>
+<tr>
+<td>Install path or URL</td>
+<td></td>
+</tr>
+<tr>
+<td>Package (slim/full)</td>
+<td></td>
+</tr>
+<tr>
+<td>SVC port</td>
+<td>[17880 / other]</td>
+</tr>
+<tr>
+<td>Start-on-boot</td>
+<td>[Yes/No]</td>
+</tr>
+<tr>
+<td>PWA encouraged</td>
+<td>[Yes/No]</td>
+</tr>
+</table>
+<h2>Impact</h2>
+<table>
+<tr>
+<th>Area</th>
+<th>Impact</th>
+</tr>
+<tr>
+<td>User downtime</td>
+<td>[None / minutes / …]</td>
+</tr>
+<tr>
+<td>Network</td>
+<td>[Setup download once / none]</td>
+</tr>
+<tr>
+<td>Security</td>
+<td>See attached brief / ticket link</td>
+</tr>
+<tr>
+<td>Other apps</td>
+<td>[Port conflicts? AV?]</td>
+</tr>
+</table>
+<h2>Plan</h2>
+<ol>
+<li>[ ] Backup previous install folder to <strong>[path]</strong>  </li>
+<li>[ ] Deploy package / update files  </li>
+<li>[ ] Start SVC (if used); verify <code>.url</code>  </li>
+<li>[ ] Smoke test (open → annotate → project save → PDF export)  </li>
+<li>[ ] Communicate to users (link to short how-to)</li>
+</ol>
+<h2>Rollback</h2>
+<ol>
+<li>Stop SVC  </li>
+<li>Restore <strong>[backup path]</strong>  </li>
+<li>Restart SVC; verify version string in <code>VERSION</code> / title bar  </li>
+</ol>
+<p><strong>Rollback owner:</strong> [name]  </p>
+<p><strong>Rollback time estimate:</strong> [minutes]</p>
+<h2>Test evidence</h2>
+<table>
+<tr>
+<th>Test</th>
+<th>Pass?</th>
+<th>Notes</th>
+</tr>
+<tr>
+<td>Open PDF</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Edit + undo</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Save project</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Export PDF</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Forms (if used)</td>
+<td></td>
+<td></td>
+</tr>
+</table>
+<h2>Approvals</h2>
+<table>
+<tr>
+<th>Role</th>
+<th>Name</th>
+<th>Date</th>
+<th>Sign-off</th>
+</tr>
+<tr>
+<td>Requester</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>IT owner</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>Security (if required)</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>CAB</td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</table>
+<h2>Post-implementation</h2>
+<ul class="task-list">
+<li class="task"><input type="checkbox" disabled> Ticket updated with version + path  </li>
+<li class="task"><input type="checkbox" disabled> Support runbook version field updated  </li>
+<li class="task"><input type="checkbox" disabled> Issues found:  </li>
+</ul>
+<p><strong>Close notes:</strong></p>
+  </article>
+  <p class="footer-note">Same visual language as the field journal / case study. Chrome / Edge: <strong>Print — Save as PDF</strong> (enable background graphics to keep the dark theme).</p>
+</div>
+</body>
+</html>

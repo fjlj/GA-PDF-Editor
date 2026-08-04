@@ -1,0 +1,93 @@
+{
+  "$schema_comment": "Sources for tools/package/setup.ps1. Prefer unpkg/npm/cdnjs first; jsDelivr is last (some networks cannot resolve cdn.jsdelivr.net).",
+  "pdfjs": {
+    "version": "3.11.174",
+    "npmTarball": "https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-3.11.174.tgz",
+    "npmTarballFallbacks": [
+      "https://unpkg.com/pdfjs-dist@3.11.174/pdfjs-dist-3.11.174.tgz",
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/pdfjs-dist-3.11.174.tgz"
+    ],
+    "map": {
+      "package/build/pdf.min.js": "lib/pdfjs/pdf.local.js",
+      "package/build/pdf.worker.min.js": "lib/pdfjs/pdf.worker.local.js"
+    },
+    "copyDirs": {
+      "package/cmaps": "lib/pdfjs/cmaps",
+      "package/standard_fonts": "lib/pdfjs/standard_fonts"
+    }
+  },
+  "pdfLib": {
+    "urls": [
+      "https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js",
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js",
+      "https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"
+    ],
+    "dest": "lib/pdf-lib/pdf-lib.min.js"
+  },
+  "html2canvas": {
+    "urls": [
+      "https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js",
+      "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+      "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"
+    ],
+    "dest": "lib/html2canvas/html2canvas.min.js"
+  },
+  "tesseract": {
+    "tesseractJs": {
+      "urls": [
+        "https://unpkg.com/tesseract.js@5.1.1/dist/tesseract.min.js",
+        "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"
+      ],
+      "dest": "lib/tesseract/tesseract.min.js"
+    },
+    "worker": {
+      "urls": [
+        "https://unpkg.com/tesseract.js@5.1.1/dist/worker.min.js",
+        "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js"
+      ],
+      "dest": "lib/tesseract/tes.worker.min.js"
+    },
+    "core": {
+      "urls": [
+        "https://unpkg.com/tesseract.js-core@5.1.1/tesseract-core-simd-lstm.wasm.js",
+        "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-simd-lstm.wasm.js"
+      ],
+      "dest": "lib/tesseract/tesseract-core-simd-lstm.wasm.js"
+    },
+    "traineddata": {
+      "urls": [
+        "https://tessdata.projectnaptha.com/4.0.0/eng.traineddata.gz",
+        "https://unpkg.com/@tesseract.js-data/eng@1.0.0/4.0.0_best_int/eng.traineddata.gz",
+        "https://cdn.jsdelivr.net/npm/@tesseract.js-data/eng@1.0.0/4.0.0_best_int/eng.traineddata.gz"
+      ],
+      "dest": "lib/tesseract/eng.traineddata.gz"
+    }
+  },
+  "qpdf": {
+    "comment": "npm @neslinesli93/qpdf-wasm (CLI in WASM). Append window.QpdfModule = Module for script-tag loading.",
+    "npmTarball": "https://registry.npmjs.org/@neslinesli93/qpdf-wasm/-/qpdf-wasm-0.3.0.tgz",
+    "npmTarballFallbacks": [
+      "https://unpkg.com/@neslinesli93/qpdf-wasm@0.3.0/@neslinesli93/qpdf-wasm-0.3.0.tgz"
+    ],
+    "version": "0.3.0",
+    "jsFrom": "package/dist/qpdf.js",
+    "wasmFrom": "package/dist/qpdf.wasm",
+    "jsDest": "lib/qpdf/qpdf.js",
+    "wasmDest": "lib/qpdf/qpdf.wasm"
+  },
+  "googleFonts": {
+    "families": [
+      { "family": "Roboto", "weights": [400, 500, 700] },
+      { "family": "Open Sans", "weights": [400, 600, 700] },
+      { "family": "Montserrat", "weights": [400, 500, 600, 700] },
+      { "family": "Merriweather", "weights": [400, 700] },
+      { "family": "Pacifico", "weights": [400] },
+      { "family": "Caveat", "weights": [400, 500, 600, 700] },
+      { "family": "Dancing Script", "weights": [400, 500, 600, 700] },
+      { "family": "Great Vibes", "weights": [400] },
+      { "family": "Homemade Apple", "weights": [400] }
+    ],
+    "cssDest": "assets/css/fonts.css",
+    "fontsDir": "assets/fonts"
+  }
+}

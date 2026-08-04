@@ -1,0 +1,1154 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GA PDF Editor — Field Journal / Case Study</title>
+<link rel="icon" href="./case-study/icon-192.png" type="image/png" sizes="192x192" />
+<link rel="apple-touch-icon" href="./case-study/icon-512.png" sizes="512x512" />
+<meta name="description" content="GA PDF Editor is an offline-first PDF workstation in the browser — annotate, fill and design AcroForms, local OCR, project save, honest PDF export. Document bytes stay on your machine; no cloud upload. A field journal of how it was built." />
+<style>
+  :root {
+    --bg: #0f1419;
+    --bg-elev: #1a222c;
+    --bg-card: #1e2833;
+    --border: #2d3a47;
+    --text: #e7ecf1;
+    --muted: #9aa8b5;
+    --accent: #0af;
+    --accent-dim: rgba(0, 170, 255, 0.12);
+    --warn: #f0a030;
+    --ok: #3ecf8e;
+    --danger: #e85d5d;
+    --purple: #a78bfa;
+    --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+    --mono: "Cascadia Code", "Fira Code", "Consolas", monospace;
+    --radius: 10px;
+    --max: 54rem;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    font-size: 16.5px;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0, 170, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 170, 255, 0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: var(--max);
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 5rem;
+  }
+
+  header.hero {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 2rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .hero-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.35rem;
+    margin-bottom: 0.35rem;
+  }
+  .hero-icon {
+    flex: 0 0 auto;
+    width: 88px;
+    height: 88px;
+    border-radius: 22px;
+    background: radial-gradient(circle at 40% 35%, #2a3340 0%, #141a22 70%);
+    border: 1px solid var(--border);
+    box-shadow:
+      0 0 0 1px rgba(0, 170, 255, 0.08),
+      0 12px 40px rgba(0, 0, 0, 0.45),
+      0 0 48px rgba(0, 170, 255, 0.08);
+    overflow: hidden;
+    padding: 6px;
+  }
+  .hero-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  .hero-copy { min-width: 0; flex: 1 1 auto; }
+
+  .eyebrow {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border: 1px solid rgba(0, 170, 255, 0.25);
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+    margin-bottom: 0.85rem;
+  }
+
+  h1 {
+    font-size: clamp(1.85rem, 4vw, 2.45rem);
+    line-height: 1.2;
+    font-weight: 750;
+    margin: 0 0 0.75rem;
+    letter-spacing: -0.02em;
+  }
+
+  .lede {
+    font-size: 1.08rem;
+    color: var(--text);
+    max-width: 42rem;
+    margin: 0.85rem 0 1.15rem;
+    line-height: 1.7;
+  }
+  .lede strong { font-weight: 650; color: var(--text); }
+
+  .hero-shot {
+    margin: 0 0 1.35rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .hero-shot:hover {
+    border-color: rgba(0, 170, 255, 0.4);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  }
+  .hero-shot a {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+  }
+  .hero-shot img {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    background: #0a0e12;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero-shot figcaption {
+    padding: 0.7rem 1rem 0.85rem;
+    font-size: 0.88rem;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+  .hero-shot figcaption strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .subtitle {
+    font-size: 1.05rem;
+    color: var(--muted);
+    max-width: 40rem;
+    margin: 0 0 1.5rem;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    font-size: 0.88rem;
+    color: var(--muted);
+  }
+  .meta strong { color: var(--text); font-weight: 600; }
+
+  /* Screenshots */
+  .shot-grid {
+    display: grid;
+    gap: 1rem;
+    margin: 0 0 1.25rem;
+  }
+  @media (min-width: 720px) {
+    .shot-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .shot {
+    margin: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .shot:hover {
+    border-color: rgba(0, 170, 255, 0.4);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  }
+  .shot a {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+  }
+  .shot img {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    background: #0a0e12;
+    border-bottom: 1px solid var(--border);
+  }
+  .shot figcaption {
+    padding: 0.85rem 1rem 1rem;
+  }
+  .shot figcaption strong {
+    display: block;
+    font-size: 0.95rem;
+    margin-bottom: 0.25rem;
+    color: var(--text);
+  }
+  .shot figcaption span {
+    font-size: 0.85rem;
+    color: var(--muted);
+    line-height: 1.45;
+  }
+  .shot-note {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin: -0.25rem 0 0;
+  }
+
+  /* lightbox */
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(5, 8, 12, 0.88);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    cursor: zoom-out;
+  }
+  .lightbox.is-open { display: flex; }
+  .lightbox img {
+    max-width: min(1200px, 96vw);
+    max-height: 90vh;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Compact milestone strip */
+  .milestones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+  }
+  .milestones li {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.35rem 0.6rem;
+    color: var(--muted);
+    margin: 0;
+  }
+  .milestones li strong {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .milestones li.now strong { color: var(--ok); }
+
+  /* Accordions */
+  details.acc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 0 0 0.65rem;
+    overflow: hidden;
+  }
+  details.acc.warn { border-color: rgba(240, 160, 48, 0.35); }
+  details.acc > summary {
+    cursor: pointer;
+    padding: 0.8rem 1.05rem;
+    font-weight: 650;
+    font-size: 0.98rem;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    user-select: none;
+  }
+  details.acc > summary::-webkit-details-marker { display: none; }
+  details.acc > summary::before {
+    content: "▸";
+    color: var(--accent);
+    font-size: 0.85rem;
+    transition: transform 0.15s ease;
+    flex: 0 0 auto;
+  }
+  details.acc[open] > summary::before { transform: rotate(90deg); }
+  details.acc[open] > summary {
+    border-bottom: 1px solid var(--border);
+    background: rgba(0, 0, 0, 0.12);
+  }
+  details.acc .acc-body {
+    padding: 0.9rem 1.1rem 1.05rem;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  details.acc .acc-body > :last-child { margin-bottom: 0; }
+  details.acc .acc-body p { margin: 0 0 0.75rem; }
+  details.acc .acc-body ul, details.acc .acc-body ol {
+    margin: 0 0 0.75rem;
+  }
+  details.acc .acc-body pre {
+    margin-bottom: 0.75rem;
+  }
+  details.acc .acc-body strong { color: var(--text); }
+
+  .acc-hint {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin: -0.35rem 0 0.85rem;
+  }
+
+  @media (max-width: 520px) {
+    .hero-top { flex-direction: column; align-items: center; text-align: center; }
+    .lede, .subtitle { margin-left: auto; margin-right: auto; }
+    .meta { justify-content: center; }
+  }
+
+  nav.toc {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.15rem 1.35rem;
+    margin-bottom: 2.5rem;
+  }
+  nav.toc h2 {
+    margin: 0 0 0.65rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  nav.toc ol {
+    margin: 0;
+    padding-left: 1.2rem;
+    columns: 1;
+  }
+  @media (min-width: 640px) {
+    nav.toc ol { columns: 2; column-gap: 2rem; }
+  }
+  nav.toc li { margin: 0.25rem 0; break-inside: avoid; }
+  nav.toc a {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 0.92rem;
+  }
+  nav.toc a:hover { text-decoration: underline; }
+
+  section { margin-bottom: 2.5rem; }
+
+  h2 {
+    font-size: 1.4rem;
+    margin: 0 0 0.85rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: -0.015em;
+  }
+  h3 {
+    font-size: 1.05rem;
+    margin: 1.35rem 0 0.5rem;
+    color: var(--text);
+  }
+
+  p { margin: 0 0 0.9rem; }
+  p.lead {
+    font-size: 1.02rem;
+    color: var(--muted);
+  }
+
+  ul, ol { margin: 0 0 0.9rem; padding-left: 1.35rem; }
+  li { margin: 0.3rem 0; }
+  li::marker { color: var(--accent); }
+
+  a { color: var(--accent); }
+
+  code, .mono {
+    font-family: var(--mono);
+    font-size: 0.86em;
+  }
+  code {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+  }
+
+  pre {
+    background: #0a0e12;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.9rem 1.05rem;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    line-height: 1.5;
+    margin: 0 0 1rem;
+    color: #c5d0da;
+  }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.05rem 1.2rem;
+    margin: 0 0 0.85rem;
+  }
+  .card.accent { border-color: rgba(0, 170, 255, 0.35); background: var(--accent-dim); }
+  .card h3 { margin-top: 0; }
+
+  .grid {
+    display: grid;
+    gap: 0.85rem;
+    margin: 0 0 1rem;
+  }
+  @media (min-width: 640px) {
+    .grid.two { grid-template-columns: 1fr 1fr; }
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin: 0 0 1rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.5rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    color: var(--muted);
+    font-weight: 650;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+  .tag {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    vertical-align: middle;
+    margin-right: 0.25rem;
+  }
+  .tag.warn { background: rgba(240, 160, 48, 0.15); color: var(--warn); }
+  .tag.danger { background: rgba(232, 93, 93, 0.15); color: var(--danger); }
+  .tag.purple { background: rgba(167, 139, 250, 0.15); color: var(--purple); }
+  .tag.blue { background: var(--accent-dim); color: var(--accent); }
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    padding: 0.55rem 0 0.55rem 1rem;
+    margin: 0.85rem 0 1rem;
+    color: var(--muted);
+  }
+  .callout strong { color: var(--text); }
+  .callout.joke { border-left-color: var(--purple); }
+
+  footer {
+    margin-top: 2.5rem;
+    padding-top: 1.35rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  .stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin: 0 0 0.5rem;
+  }
+  .stack span {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    padding: 0.3rem 0.55rem;
+    border-radius: 6px;
+    color: var(--muted);
+  }
+
+  /* Feature menu */
+  .feat-grid {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0 0 1rem;
+  }
+  @media (min-width: 640px) {
+    .feat-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (min-width: 900px) {
+    .feat-grid { grid-template-columns: 1fr 1fr 1fr; }
+  }
+  .feat {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.95rem 1.05rem 0.85rem;
+    margin: 0;
+  }
+  .feat h3 {
+    margin: 0 0 0.55rem;
+    font-size: 0.92rem;
+    color: var(--accent);
+    letter-spacing: 0.01em;
+  }
+  .feat ul {
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .feat li { margin: 0.28rem 0; line-height: 1.45; }
+  .feat li strong { color: var(--text); font-weight: 600; }
+  .feat.highlight {
+    border-color: rgba(0, 170, 255, 0.4);
+    background: var(--accent-dim);
+  }
+  .feat.highlight h3 { color: var(--ok); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="hero-top">
+    <div class="hero-icon" aria-hidden="true">
+      <img src="./case-study/icon-512.png" width="512" height="512" alt="" />
+    </div>
+    <div class="hero-copy">
+      <div class="eyebrow">A slightly unhinged field journal · v1.5.3</div>
+      <h1>GA PDF Editor:<br />how I accidentally built a PDF workstation in the browser</h1>
+    </div>
+  </div>
+  <p class="lede">
+    <strong>GA PDF Editor</strong> is an offline-first PDF workstation that runs in the browser:
+    annotate, fill and design AcroForms, run local OCR, save projects, and export honest PDFs —
+    all as static files, no server round-trip required for the document itself.
+    Offline matters because your document bytes stay on the machine: open from a USB stick or
+    localhost, work without a cloud account, and never upload sensitive PDFs “just to edit them.”
+  </p>
+  <figure class="hero-shot">
+    <a href="./case-study/shot-editor-multitab.jpg" class="lb-trigger" data-caption="Multi-document Editor workspace — live app">
+      <img src="./case-study/shot-editor-multitab.jpg" width="1440" height="900"
+           alt="Live GA PDF Editor: multi-tab Editor workspace with fillable invoice, sticky note, and pages sidebar"
+           fetchpriority="high" />
+    </a>
+    <figcaption>
+      <strong>Live multi-tab Editor</strong> — real app chrome and demo PDFs, not a mockup. Click to zoom.
+    </figcaption>
+  </figure>
+  <p class="subtitle">
+    Hi. Short field journal this time — multi-tabs, dual form layers, instruction-tape undo,
+    export that doesn’t lie, and a zip so small it feels like a prank. Grab tea.
+    There will be AcroForms. There will be feelings. There may be a missing semicolon.
+  </p>
+  <div class="meta">
+    <span><strong>Product</strong> GA PDF Editor</span>
+    <span><strong>Owner</strong> Give Academy LLC</span>
+    <span><strong>Stack</strong> Vanilla ES6 · PDF.js · pdf-lib · QPDF WASM</span>
+    <span><strong>Vibe</strong> Offline / file:// capable · no “please upload your soul”</span>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <h2>Map of this adventure</h2>
+  <ol>
+    <li><a href="#nature">What even is this thing</a></li>
+    <li><a href="#features">Feature menu</a></li>
+    <li><a href="#gallery">Pretty pictures</a></li>
+    <li><a href="#timeline">Version highlights</a></li>
+    <li><a href="#accomplishments">Proud of</a></li>
+    <li><a href="#architecture">Architecture napkin</a></li>
+    <li><a href="#hurdles">Boss fights</a></li>
+    <li><a href="#deeper">Deeper cuts</a></li>
+    <li><a href="#ship">Ship &amp; SVC</a></li>
+    <li><a href="#lessons">Hard-won lessons</a></li>
+  </ol>
+</nav>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="nature">
+  <h2>1. What even is this thing</h2>
+  <p class="lead">
+    Not “I put a PDF on a canvas and shipped it.” A little <strong>desktop-class PDF workstation</strong>
+    that still ships as boring static files — scribble, fill, design fields, OCR, project save,
+    export Adobe won’t laugh at — <em>without</em> yeeting documents into the cloud.
+  </p>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>What it is ♥</h3>
+      <ul>
+        <li>Client-side viewer/editor for PDF people</li>
+        <li><strong>Editor</strong> (fill + annotate) vs <strong>Forms</strong> (design fields)</li>
+        <li>Multi-doc tabs · <code>.gapdf</code> projects · honest final PDFs</li>
+        <li>Offline-first, vendored deps — USB stick energy</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>What it is not</h3>
+      <ul>
+        <li>Not a cloud DMS / real-time collab suite</li>
+        <li>Not a courtroom e-sign identity circus</li>
+        <li>Not a React/Vue SPA with a webpack novel</li>
+        <li>Not “flatten to image and hope”</li>
+      </ul>
+    </div>
+  </div>
+
+  <details class="acc">
+    <summary>Whiteboard rules (and the tears under them)</summary>
+    <div class="acc-body">
+      <ul>
+        <li><strong>No bundler</strong> — <code>config.js</code> load order + <code>?v=</code> cache-bust. Old school. Kind of proud.</li>
+        <li><strong>Offline / USB / file://</strong> — OCR and password-protect when Wi‑Fi is a myth.</li>
+        <li><strong>Privacy</strong> — bytes stay on the machine. No “upload for processing” side quest.</li>
+        <li><strong>Honest export</strong> — annotations can flatten; form fields stay fillable AcroForms.</li>
+        <li><strong>Operator reality</strong> — ship without installing Node on every desk like a lifestyle brand.</li>
+      </ul>
+    </div>
+  </details>
+
+  <div class="stack" aria-label="Technology stack">
+    <span>PDF.js 3.11</span>
+    <span>pdf-lib</span>
+    <span>html2canvas</span>
+    <span>Tesseract.js</span>
+    <span>QPDF WASM</span>
+    <span>IndexedDB</span>
+    <span>mongoose (SVC)</span>
+    <span>PowerShell packaging</span>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="features">
+  <h2>2. Feature menu (the world is your oyster… or clam)</h2>
+  <p class="lead">
+    For S’s and G’s: a tidy inventory of what the workstation actually does.
+    Combine PDFs for free. Drag pages around. Design fillables. OCR a scan.
+    No cloud upsell, no “three free merges then please subscribe.” The world is your
+    oyster — or clam, or whichever bivalve you’re comfortable shipping on a USB stick.
+  </p>
+
+  <div class="feat-grid">
+    <div class="feat highlight">
+      <h3>Documents &amp; pages</h3>
+      <ul>
+        <li><strong>Open / append</strong> PDFs and <code>.gapdf</code> projects (multi-select OK)</li>
+        <li><strong>Combine PDFs for free</strong> — merge many files into one document (or open each as its own tab)</li>
+        <li><strong>Insert PDF</strong> mid-stack from the Pages panel (green button energy)</li>
+        <li><strong>Reorder pages</strong> with drag-and-drop on thumbnails (undoable)</li>
+        <li><strong>Delete pages</strong> with the × on a thumb</li>
+        <li><strong>Rename pages</strong> — double-click the thumb label</li>
+        <li><strong>Multi-document tabs</strong> — each keeps its own zoom, overlays, and history</li>
+        <li><strong>Session restore</strong> — handles + PDF bytes in IndexedDB after a refresh</li>
+        <li>Drag-and-drop files onto the window to open or append</li>
+      </ul>
+    </div>
+
+    <div class="feat">
+      <h3>Annotate &amp; layout</h3>
+      <ul>
+        <li><strong>Add text</strong> overlays (sticky-note vibes welcome)</li>
+        <li><strong>Edit / stamp</strong> rich text blocks with fill &amp; border</li>
+        <li><strong>Shapes</strong> — rectangle; line / quick redaction bar</li>
+        <li><strong>Tables / grids</strong> with live controls</li>
+        <li><strong>Insert images</strong> and position them on the page</li>
+        <li><strong>Snip &amp; move</strong> — cut a region and place it elsewhere</li>
+        <li><strong>Signatures</strong> — type a name, pick a cursive style, stamp it</li>
+        <li>Drag, resize, <strong>rotate</strong>, snap guides, multi-select marquee</li>
+        <li>Toggle render smoothing when the pixels get opinions</li>
+      </ul>
+    </div>
+
+    <div class="feat">
+      <h3>Fillable forms (AcroForms)</h3>
+      <ul>
+        <li><strong>Editor mode</strong> — fill existing native form fields</li>
+        <li><strong>Forms mode</strong> — design / move / multi-select field shells</li>
+        <li>Field types: text, checkbox, radio, dropdown, signature</li>
+        <li>Auto-import natives into designer twins when you open a fillable PDF</li>
+        <li>Dropdown option editor for list choices</li>
+        <li><strong>Honest export</strong> — re-embeds real widgets at designer geometry (still fillable later)</li>
+      </ul>
+    </div>
+
+    <div class="feat">
+      <h3>OCR, print &amp; open</h3>
+      <ul>
+        <li><strong>Scan OCR</strong> (Tesseract, offline English) — active tab only</li>
+        <li>Works on <code>file://</code> via base64 embeds after setup</li>
+        <li>Hold Shift to force a re-scan when the goblins demand it</li>
+        <li><strong>Print</strong> flattened page images with orientation-aware CSS</li>
+        <li>Open <strong>password-protected</strong> PDFs (unlock dialog)</li>
+        <li>Zoom in / out; keyboard shortcuts help modal (<code>?</code>)</li>
+      </ul>
+    </div>
+
+    <div class="feat">
+      <h3>History &amp; trust</h3>
+      <ul>
+        <li><strong>Undo / redo</strong> — instruction-tape command history (not haunted closures)</li>
+        <li>History panel lists macros you can actually read</li>
+        <li>Page moves, deletes, renames, and overlay edits participate in the tape</li>
+        <li>Project audit breadcrumbs ride along in <code>.gapdf</code> saves</li>
+      </ul>
+    </div>
+
+    <div class="feat">
+      <h3>Save, protect &amp; ship</h3>
+      <ul>
+        <li><strong>Save Project (<code>.gapdf</code>)</strong> — real PDF + gzip JSON trailer (overlays, form state)</li>
+        <li><strong>Save PDF</strong> — flatten annotations; keep fields fillable; quality presets (draft → ultra)</li>
+        <li><strong>Password-protect on export</strong> (QPDF WASM / AES) without murdering fillables</li>
+        <li>Offline-first: static files, USB-friendly slim zip + <code>Setup.bat</code></li>
+        <li>Optional local SVC + PWA install on sticky localhost (no admin)</li>
+        <li>Close / Close All when you’re done being productive</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Free as in “we don’t meter merges.”</strong>
+    Combine, reorder, delete, annotate, form-design, OCR, encrypt — all client-side.
+    Your document bytes stay on the machine. The clam stays closed to the cloud.
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="gallery">
+  <h2>3. Pretty pictures (real ones!)</h2>
+  <p class="lead">
+    Tired of AI mockups that looked like a cousin of the app. Live localhost + Puppeteer + tiny demo PDFs.
+    Click to zoom. Yes, that is the real purple OCR button.
+  </p>
+
+  <div class="shot-grid">
+    <figure class="shot">
+      <a href="./case-study/shot-form-design.jpg" class="lb-trigger" data-caption="Forms workspace — designer shells">
+        <img src="./case-study/shot-form-design.jpg" width="1440" height="900"
+             alt="Live Forms mode: form-template.pdf with purple designer field shells" loading="lazy" />
+      </a>
+      <figcaption>
+        <strong>Forms mode: fields grow handles</strong>
+        <span>Designer shells you can shove around. Export listens to <em>these</em> boxes — not vibes from 2019.</span>
+      </figcaption>
+    </figure>
+
+    <figure class="shot">
+      <a href="./case-study/shot-packaging.jpg" class="lb-trigger" data-caption="Slim package → Setup.bat → local origin">
+        <img src="./case-study/shot-packaging.jpg" width="1280" height="720"
+             alt="Diagram: slim zip through Setup.bat multi-CDN into app with PDF.js, Tesseract, QPDF and local SVC on port 17880" loading="lazy" />
+      </a>
+      <figcaption>
+        <strong>Tiny zip → big powers</strong>
+        <span>~0.3&nbsp;MB of hope, setup once, multi-CDN, then WASM forever offline. Double-click <code>Setup.bat</code>.</span>
+      </figcaption>
+    </figure>
+  </div>
+
+  <p class="shot-note">
+    Shots from <code>dev/case-study/demos/</code> · packaging panel is a diagram, not my desktop chaos.
+  </p>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="timeline">
+  <h2>4. Version highlights</h2>
+  <p class="lead">
+    I planned “tabs would be nice.” Then forms export ate a week and I started naming cache-bust
+    slugs like war medals. Product version = <code>VERSION</code>. Chaos version = <code>config.js</code> slug.
+  </p>
+
+  <ul class="milestones" aria-label="Milestones">
+    <li><strong>1.2</strong> tabs · session restore</li>
+    <li><strong>1.3</strong> instruction tape · strip widgets</li>
+    <li><strong>1.4</strong> KISS form export</li>
+    <li><strong>1.5</strong> reorg · offline setup · SVC</li>
+    <li class="now"><strong>1.5.3</strong> you are here</li>
+  </ul>
+
+  <p class="acc-hint">Spoilers under the fold — expand if you like semver fanfic.</p>
+
+  <details class="acc">
+    <summary>Act I · multi-doc &amp; “why won’t tab 2 click”</summary>
+    <div class="acc-body">
+      <p><strong>1.2.0</strong> — one <code>config.js</code>, multi-doc workspace, IndexedDB, install-only SW,
+        <code>launch_handler: focus-existing</code> so double-clicks don’t birth twins.</p>
+      <p><strong>1.2.1–1.2.3</strong> — tools only worked on tab 1 because I bound listeners to the original
+        <code>#viewer</code> like a medieval peasant. Fixed with workspace-root delegation and PDF-byte caching.
+        Rite of passage: <em>works on my machine</em> (where I only ever opened one tab).</p>
+    </div>
+  </details>
+  <details class="acc">
+    <summary>Act II · history becomes data (villain origin)</summary>
+    <div class="acc-body">
+      <p><strong>1.3.0</strong> — replaced “stack of closures that captured the DOM and my tears” with opcodes + payloads.
+        Undo = invert. Macro-only commits — no mousemove seismograph.</p>
+      <p><strong>1.3.6–1.3.9</strong> — deleted fields resurrected via <code>copyPages</code> smuggling <code>/Widget</code> annots;
+        CSS <code>pointer-events: none</code> on the form stencil (classic “I told the box it doesn’t exist”);
+        pdf-lib’s private form cache hugging a ghost AcroForm that never serializes.</p>
+    </div>
+  </details>
+  <details class="acc">
+    <summary>Act III · KISS export (keep it simple, seriously)</summary>
+    <div class="acc-body">
+      <p><strong>1.4.0</strong> — snapshot shells → strip hard → brand-new AcroForm → write fields. Flat names.</p>
+      <p><strong>1.4.1</strong> — console poem of the year: <code>wrote widgets=0 failed=N form.getFields()=N</code>.
+        Fields in the dictionary, zero page widgets a human can click.</p>
+      <p><strong>1.4.2</strong> — <code>setTimeout(100)</code> is not a strategy; it’s a coin flip. Apply project data immediately; repair passes when layers paint.</p>
+    </div>
+  </details>
+  <details class="acc">
+    <summary>Act IV · tidy room, ship it</summary>
+    <div class="acc-body">
+      <p><strong>1.5.0–1.5.1</strong> — folder reorg so an adult appears to live here; OCR scoped to the active tab (boundaries!).</p>
+      <p><strong>1.5.2–1.5.3</strong> — slim package + multi-CDN setup, sticky-port SVC, this essay so future-me doesn’t re-learn orphan form caches from first principles.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="accomplishments">
+  <h2>5. Stuff I’m weirdly proud of</h2>
+  <table>
+    <thead>
+      <tr><th>Domain</th><th>What shipped</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Multi-doc UI</strong></td>
+        <td>VS Code–ish tabs; per-doc viewer/zoom/history; restore via handles + PDF bytes in IndexedDB.</td>
+      </tr>
+      <tr>
+        <td><strong>Annotations</strong></td>
+        <td>Text, shapes, tables, images, snip, signatures — drag/resize/rotate, snap, group marquee.</td>
+      </tr>
+      <tr>
+        <td><strong>Fillable forms</strong></td>
+        <td>Fill natives in Editor; design shells in Forms; export re-embeds widgets at designer geometry.</td>
+      </tr>
+      <tr>
+        <td><strong>History</strong></td>
+        <td>Instruction tape (<code>GaProcessor</code>). Undo is data, not a haunted closure.</td>
+      </tr>
+      <tr>
+        <td><strong>OCR · security</strong></td>
+        <td>Offline Tesseract (active tab); optional AES via QPDF WASM without murdering fillables.</td>
+      </tr>
+      <tr>
+        <td><strong>Ship · origin</strong></td>
+        <td>Slim zip + <code>Setup.bat</code>; SVC on sticky localhost for PWA without admin cosplay.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="architecture">
+  <h2>6. Architecture on one napkin</h2>
+  <p class="lead">
+    PDF.js owns pixels + native widgets. The <strong>DOM overlay</strong> owns “what I meant when I dragged that box.”
+    Export is a reconciliation ceremony — not a live two-way binding on every mousemove (that way lies 60fps regret).
+  </p>
+
+<pre>Shell: index.html + config.js (?v=)
+  Tabs → GaWorkspace → .doc-viewer panes
+    PDF.js canvas/text/annotation layers
+    DOM overlays (text/shape/form shells)
+    Interaction (mouse/drag/keys)
+         │
+         ▼
+  GaProcessor.commit(inst) → history tape + audit
+         │
+         ▼
+  Export: copyPages → strip Widgets → embed designers → (opt) QPDF
+  .gapdf: same PDF half + gzip schema trailer</pre>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="hurdles">
+  <h2>7. Boss fights</h2>
+  <p class="lead">
+    Several of these bugs had my full name in the stack trace. Expand only the trauma you need.
+  </p>
+  <p class="acc-hint">All collapsed by default — skimmers stay free.</p>
+
+  <details class="acc warn">
+    <summary><span class="tag warn">Boss</span> Multi-tab event isolation</summary>
+    <div class="acc-body">
+      <p>Tools only worked on tab one. Listeners bound once to the original <code>#viewer</code>; new panes never got the memo. Tab 2: beautiful. Also: mute.</p>
+      <p><strong>Lesson:</strong> bind high, resolve the live pane — preferably before demo day.</p>
+    </div>
+  </details>
+  <details class="acc warn">
+    <summary><span class="tag warn">Boss</span> Dual form layers having a knife fight</summary>
+    <div class="acc-body">
+      <p>PDF.js paints interactive AcroForms; designers need movable shells. Hide natives too hard → fill vanishes. Leave both → double fields and the legendary “flash then gone.”</p>
+      <p><strong>Lesson:</strong> two jobs, two modes (Editor fill vs Forms design) — not one boolean named <code>formsAreOnIGuess</code>.</p>
+    </div>
+  </details>
+  <details class="acc warn">
+    <summary><span class="tag danger">Boss</span> Delete means delete (please)</summary>
+    <div class="acc-body">
+      <p><code>copyPages</code> brings page <code>/Widget</code> annots even when the high-level form API looks empty. Deleted fields paid rent and came back.</p>
+      <p><strong>Lesson:</strong> strip at the page Annots level. <code>form.removeField()</code> alone is a polite suggestion.</p>
+    </div>
+  </details>
+  <details class="acc warn">
+    <summary><span class="tag danger">Boss</span> Create ≠ “a human can click this”</summary>
+    <div class="acc-body">
+<pre>[embedAllFormFields] wrote widgets= 0 failed= 4 form.getFields()= 4</pre>
+      <p>Four fields on the AcroForm object. <strong>Zero page widgets.</strong> Usually <code>addToPage</code> threw after <code>createTextField</code> already “succeeded.” Bonus: strip catalog <code>/AcroForm</code> while the private form cache still hugs an orphan.</p>
+      <p><strong>Lesson:</strong> count widgets on pages. Fresh form after strip. Never pass NaN geometry to a library that believes you.</p>
+    </div>
+  </details>
+  <details class="acc warn">
+    <summary><span class="tag warn">Boss</span> Races dressed as flaky features</summary>
+    <div class="acc-body">
+      <p>Project restore via <code>setTimeout(100)</code>, global <code>getElementById</code> across tabs, import gated on annotation CSS that hadn’t painted. Symptom: “works… unless you refresh. Or breathe wrong.”</p>
+      <p><strong>Lesson:</strong> await render. Scope queries. Sleep is not a dependency.</p>
+    </div>
+  </details>
+  <details class="acc warn">
+    <summary><span class="tag purple">Boss</span> Offline reality vs npm daydreams</summary>
+    <div class="acc-body">
+      <p>Tesseract and QPDF want workers/WASM. <code>file://</code> laughs at fetch. One CDN’s DNS ghosted mid-setup. Our “custom” qpdf was a normal npm package in a trench coat (SHA matched; I felt both smart and scammed).</p>
+      <p><strong>Lesson:</strong> base64 embeds, multi-mirror setup, never marry one CDN.</p>
+    </div>
+  </details>
+  <details class="acc warn">
+    <summary><span class="tag blue">Boss</span> PWA origin is a pinky promise</summary>
+    <div class="acc-body">
+      <p>Installed PWA = married to <code>http://127.0.0.1:PORT</code>. Silently hopping ports orphans the install. Auto-opening a browser at logon makes users think malware invented a PDF editor.</p>
+      <p><strong>Lesson:</strong> sticky port from the <code>.url</code>; MessageBox if busy; boot stays quiet. Be boring. Be loved.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="deeper">
+  <h2>8. Deeper cuts (optional lore)</h2>
+  <p class="lead">
+    Tricks, form lifecycle, and the instruction tape — still here for archaeology, not required for the tour.
+  </p>
+
+  <details class="acc">
+    <summary>Spellbook · tricks &amp; slightly cursed spells</summary>
+    <div class="acc-body">
+      <ul>
+        <li><strong>Workspace-root event delegation</strong> — every tab hears marquee/tools/wheel.</li>
+        <li><strong><code>body.capture-safe</code></strong> — export/print don’t bake Form-mode dimming into pixels forever.</li>
+        <li><strong>KISS embed path</strong> — snapshot → strip → new AcroForm → write. Flat field names; <code>ga_</code> prefix against zombie names.</li>
+        <li><strong>Macro-only history commits</strong> — mouseup / blur / coalesced arrow nudges. Undo is math on data.</li>
+        <li><strong>Base64 <code>*.embed.js</code></strong> — workers/WASM/traineddata that work on <code>file://</code>.</li>
+        <li><strong>Sticky port + named mutex</strong> — single SVC instance; PWA origin stays put.</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="acc">
+    <summary>Deep dive · form lifecycle (my Roman Empire)</summary>
+    <div class="acc-body">
+      <table>
+        <thead>
+          <tr><th>Layer</th><th>When</th><th>Boss</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>PDF.js AnnotationLayer</td>
+            <td>Editor fill</td>
+            <td>PDF bytes (until we manage + strip)</td>
+          </tr>
+          <tr>
+            <td><code>.formFieldOverlay</code></td>
+            <td>Forms design + export geometry</td>
+            <td>DOM + project schema</td>
+          </tr>
+        </tbody>
+      </table>
+<pre>Open fillable → paint natives → import designer twins
+User moves shells → DOM geometry is truth
+Export → copyPages 👻 → strip Widgets hard → new AcroForm
+       → embed from designer snapshot → save
+Reopen → applyProjectData now (no 100ms vibes) → repair if short count</pre>
+      <p><strong>Tattoo this:</strong> “visible in the editor” must mean “serializable from the DOM.”
+        If export can’t see shells, pdf-lib cannot telepathically invent them.</p>
+    </div>
+  </details>
+
+  <details class="acc">
+    <summary>Deep dive · instruction-tape history</summary>
+    <div class="acc-body">
+      <p>Early me loved <code>{ undo, redo }</code> closures. They captured live elements, refused to serialize, and fought multi-tab restore like cats in a bag.</p>
+      <p><strong>GaProcessor:</strong> opcode + payload. Undo inverts. Redo replays. Command pattern wearing a hoodie.</p>
+      <ul>
+        <li><code>CREATE_NODE</code> / <code>DELETE_NODE</code> · <code>COMMIT_TRANSFORM(S)</code></li>
+        <li><code>SET_STYLE</code> / <code>SET_INNER_HTML</code> / <code>SET_TEXT_STATE</code></li>
+        <li><code>COMPOUND</code> · <code>LEGACY_CLOSURE</code> (escape hatch; console side-eyes you)</li>
+      </ul>
+      <p>House rule: <strong>no instructions on mousemove</strong>. The tape stays readable.</p>
+    </div>
+  </details>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="ship">
+  <h2>9. Shipping tiny zips &amp; the little service</h2>
+  <div class="grid two">
+    <div class="card accent">
+      <h3>Slim package (~0.3&nbsp;MB)</h3>
+      <ul>
+        <li>App source, icons, SVC.exe, <code>Setup.bat</code></li>
+        <li>Stub <code>lib/*</code> + empty fonts</li>
+        <li><code>tools/setup.ps1</code> + manifest + this rant</li>
+      </ul>
+      <p style="margin:0; font-size:0.9rem; color: var(--muted);">
+        One-time setup pulls vendors (multi-CDN), fonts, file:// embeds; optional start-on-boot. No Node on every desk.
+      </p>
+    </div>
+    <div class="card">
+      <h3>GA-PDF-Editor-SVC.exe</h3>
+      <ul>
+        <li>mongoose on <code>127.0.0.1</code> only — stable PWA origin</li>
+        <li>Default port <code>17880</code>; sticky from <code>.url</code></li>
+        <li>Single-instance mutex; no auto-browser at login</li>
+        <li>Busy port → MessageBox, not silent betrayal</li>
+        <li><code>chdir</code> to EXE dir so Startup finds <code>./app</code></li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout">
+    <strong>Admin myth, busted:</strong> high port on localhost does not need elevation.
+    User Startup / <code>HKCU\...\Run</code> are non-admin too. If setup asks for UAC just for this, someone wrote the wrong script.
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ -->
+<section id="lessons">
+  <h2>10. Things I learned the hard way</h2>
+  <ol>
+    <li><strong>Two sources of truth need a handshake.</strong> DOM and PDF dicts drift. Export is a ceremony, not a side effect of “eh, save.”</li>
+    <li><strong>Library APIs lie by omission.</strong> “Fields length is 4” ≠ “four widgets a human can click.” Measure the file people open.</li>
+    <li><strong>Races dress up as flaky features.</strong> Hard-refresh bugs are usually ordering bugs. Await + repair &gt; sleep + hope.</li>
+    <li><strong>Offline is a product feature, not a deploy accident.</strong> Embeds, slim packages, multi-mirror setup — design them or they design your weekend.</li>
+    <li><strong>Write the war stories down.</strong> Changelogs in <code>dev/</code> exist so the next person doesn’t re-learn stencil <code>pointer-events</code> from first principles.</li>
+  </ol>
+
+  <div class="callout joke">
+    <strong>Programming rites of passage (this codebase edition)</strong>
+    <ul style="margin: 0.5rem 0 0; padding-left: 1.25rem;">
+      <li>Spent twenty minutes hunting a <strong>missing semicolon</strong> that turned out to be a trailing comma in a JSON-shaped object, which is just a semicolon wearing a trench coat and a fake mustache.</li>
+      <li>Declared victory, then learned the browser was still serving 2019 from cache. Hard refresh fixed it harder. <code>?v=</code> is a lifestyle.</li>
+      <li>Off-by-one in a page index; the blank page was technically correct and spiritually wrong.</li>
+      <li><code>pointer-events: none</code> on the thing you then try to drag — gaslighting yourself with CSS.</li>
+      <li>Commit message <code>fix</code>, then <code>fix 2</code>, then <code>please</code>, then a real message after shame.</li>
+      <li>“Works on my machine” where “my machine” means one tab, one PDF, and a full moon.</li>
+    </ul>
+  </div>
+
+  <div class="card accent" style="margin-top: 1.25rem;">
+    <h3>Bottom line</h3>
+    <p style="margin:0; color: var(--muted);">
+      You can shove a static, offline-capable web app surprisingly far toward “real PDF software” —
+      if you respect PDF structure, treat the DOM as an editor canvas with an honest export step,
+      and treat packaging like part of the product. The hard parts were never “draw a box.”
+      They were <em>truth, timing, and transport</em>.
+      <br /><br />
+      Thanks for reading the nerd diary. Go make a fillable form. Or a sticky note. Or both. ♥
+    </p>
+  </div>
+</section>
+
+<footer>
+  <p>
+    <img src="./case-study/icon-192.png" width="28" height="28" alt=""
+         style="vertical-align:middle; border-radius:7px; margin-right:0.45rem;" />
+    GA PDF Editor · field journal · v1.5.3 ·
+    Also: <code>dev/CHANGELOG-*.md</code>
+  </p>
+  <p style="margin-bottom:0;">
+    Opens offline. Media in <code>dev/case-study/</code>.
+    Ships in the slim/full zips — same energy, fewer megabytes, fewer open accordions.
+  </p>
+</footer>
+
+</div>
+
+<div id="lightbox" class="lightbox" role="dialog" aria-modal="true" aria-label="Enlarged screenshot" hidden>
+  <img id="lightboxImg" src="" alt="" />
+</div>
+<script>
+(function () {
+  var lb = document.getElementById("lightbox");
+  var img = document.getElementById("lightboxImg");
+  if (!lb || !img) return;
+
+  function open(src, alt) {
+    img.src = src;
+    img.alt = alt || "";
+    lb.hidden = false;
+    lb.classList.add("is-open");
+    document.body.style.overflow = "hidden";
+  }
+  function close() {
+    lb.classList.remove("is-open");
+    lb.hidden = true;
+    img.removeAttribute("src");
+    document.body.style.overflow = "";
+  }
+
+  document.querySelectorAll("a.lb-trigger").forEach(function (a) {
+    a.addEventListener("click", function (e) {
+      e.preventDefault();
+      open(a.getAttribute("href"), a.getAttribute("data-caption") || "");
+    });
+  });
+  lb.addEventListener("click", close);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && lb.classList.contains("is-open")) close();
+  });
+})();
+</script>
+</body>
+</html>

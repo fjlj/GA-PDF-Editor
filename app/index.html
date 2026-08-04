@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GA PDF Editor</title>
+<link rel="icon" href="./assets/icons/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/GAPDF-Edit_PRO192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="./assets/icons/GAPDF-Edit_PRO512.png">
+<!--
+  Lightweight loader (no bundler):
+  1) config.js loads first (sync) → window.GA_CONFIG.version
+  2) CSS + remaining scripts injected with ?v={version} for cache-busting
+  3) Scripts load sequentially so dependencies stay ordered
+-->
+<script src="./config.js"></script>
+<script>
+(function () {
+    "use strict";
+    var cfg = window.GA_CONFIG || {};
+    var ver = encodeURIComponent(cfg.version || "0");
+    // Show app version in the browser tab (numeric only, e.g. 1.4.3 — no slug)
+    try {
+        var base = cfg.appTitle || "GA PDF Editor";
+        var raw = String(cfg.version || "");
+        var m = raw.match(/^(\d+(?:\.\d+)*)/);
+        var v = m ? m[1] : "";
+        document.title = v ? (base + " " + v) : base;
+    } catch (_) { /* ignore */ }
+    var isFile = window.location.protocol === "file:";
+
+    function withV(url) {
+        var sep = url.indexOf("?") >= 0 ? "&" : "?";
+        return url + sep + "v=" + ver;
+    }
+
+    function injectLink(rel, href, attrs) {
+        var el = document.createElement("link");
+        el.rel = rel;
+        el.href = withV(href);
+        if (attrs) {
+            Object.keys(attrs).forEach(function (k) { el.setAttribute(k, attrs[k]); });
+        }
+        document.head.appendChild(el);
+        return el;
+    }
+
+    function loadScript(src) {
+        return new Promise(function (resolve, reject) {
+            var s = document.createElement("script");
+            s.src = withV(src);
+            s.async = false;
+            s.onload = function () { resolve(src); };
+            s.onerror = function () {
+                console.error("Failed to load script:", src);
+                reject(new Error("Failed to load " + src));
+            };
+            document.head.appendChild(s);
+        });
+    }
+
+    // Styles (cache-busted) — live under assets/css/
+    injectLink("stylesheet", "./assets/css/fonts.css");
+    injectLink("stylesheet", "./assets/css/style.css");
+
+    if (isFile) {
+        // file://: no SW/manifest; PDF.js fake worker as plain script
+        console.log("Offline mode detected: Loading Fake Worker to bypass CORS.");
+    } else {
+        console.log("Online mode detected: Web Worker deferred to background thread.");
+        injectLink("manifest", "manifest.json");
+    }
+
+    // Ordered app + vendor scripts (config already loaded)
+    // Vendors live under lib/<package>/
+    var scripts = [];
+    if (isFile) {
+        scripts.push("./lib/pdfjs/pdf.worker.local.js");
+    }
+    scripts = scripts.concat([
+        "./lib/pdfjs/pdf.local.js",
+        "./lib/pdf-lib/pdf-lib.min.js",
+        "./lib/qpdf/qpdf.js",
+        "./lib/tesseract/tesseract.min.js",
+        "./lib/html2canvas/html2canvas.min.js",
+
+        "./js/core/state.js",
+        "./js/core/idb.js",
+        "./js/core/processor.js",
+        "./js/core/project-audit.js",
+        "./js/core/history.js",
+        "./js/core/io.js",
+
+        "./js/ui/utils.js",
+        "./js/ui/modals.js",
+        "./js/ui/toolbars.js",
+        "./js/ui/hotkeys.js",
+        "./js/ui/header-density.js",
+
+        "./js/engine/renderer.js",
+        "./js/engine/native-forms.js",
+        "./js/engine/thumbnails.js",
+
+        "./js/overlays/images.js",
+        "./js/overlays/text.js",
+        "./js/overlays/shapes.js",
+        "./js/overlays/snippet.js",
+        "./js/overlays/tables.js",
+        "./js/overlays/form-fields.js",
+
+        "./js/interaction/drag-engine.js",
+        "./js/interaction/selection.js",
+        "./js/interaction/file-import.js",
+        "./js/interaction/drag-drop.js",
+        "./js/interaction/keyboard.js",
+        "./js/interaction/mouse.js",
+        "./js/interaction/zoom-scroll.js",
+
+        "./js/features/ocr.js",
+        "./js/features/signature.js",
+        "./js/features/print.js",
+
+        "./js/core/workspace.js",
+        "./js/core/host-bridge.js"
+    ]);
+
+    window.__GA_LOAD_SCRIPTS__ = scripts.slice();
+
+    // Wait for <body> (and #viewer, etc.) before classic scripts that query the DOM
+    function startAppScripts() {
+        scripts.reduce(function (chain, src) {
+            return chain.then(function () { return loadScript(src); });
+        }, Promise.resolve()).then(function () {
+            window.dispatchEvent(new CustomEvent("ga-scripts-loaded"));
+            if (window.GaWorkspace && typeof window.GaWorkspace.bootstrap === "function") {
+                return window.GaWorkspace.bootstrap();
+            }
+        }).catch(function (err) {
+            console.error("GA PDF Editor failed to load:", err);
+        });
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", startAppScripts);
+    } else {
+        startAppScripts();
+    }
+})();
+</script>
+</head>
+<body>
+<!-- Document tabs (shown when GA_CONFIG.enableTabbedMode) -->
+<div id="docTabBar" class="doc-tab-bar" hidden role="tablist" aria-label="Open documents"></div>
+
+<div id="headerBar">
+    <div class="file-dropdown">
+        <select id="fileMenuSelect">
+			<option value="default" disabled selected>📄 File</option>
+			<option value="open">📂 Open / Append PDF</option>
+			<option value="save_project">💾 Save Project (.gapdf)</option>
+			<option value="save_pdf">💾 Save PDF (.pdf)</option>
+			<option value="print">🖨️ Print</option>
+			<option value="close">✖️ Close</option>
+			<option value="close_all">✖️ Close All</option>
+		</select>
+    </div>
+    <input type="file" id="fileInput" accept="application/pdf, .gapdf" multiple style="display: none;">
+	<input type="file" id="projectInput" accept=".json" style="display: none;">
+    <button id="ocrBtn" class="header-ocr-btn" title="Scan for text. Hold Shift to force scan." style="background: #6f42c1; color: white; font-weight: bold; margin-left: 5px;">
+        <span class="label-full">Scan OCR</span>
+        <span class="label-short" aria-hidden="true">OCR</span>
+    </button>
+
+    <div class="header-divider"></div>
+    <button type="button" id="workspaceModeSwitch" class="workspace-switch is-editor" role="switch" aria-checked="false" title="Editor / Form workspace (M)">
+        <span class="workspace-switch-track">
+            <span class="workspace-switch-label" aria-hidden="true"></span>
+            <span class="workspace-switch-knob" aria-hidden="true"></span>
+        </span>
+    </button>
+
+    <div class="header-divider"></div>
+    <select id="toolModeSelect" title="Tool mode">
+        <optgroup label="Tools" data-workspace="editor">
+            <option value="select" data-workspace="both">Pointer / Move</option>
+			<option value="edit" data-workspace="editor">Edit / Stamp</option>
+			<option value="snip" data-workspace="editor">✂️ Snip & Move</option>
+			<option value="text" data-workspace="editor">Add Text</option>
+			<option value="table" data-workspace="editor">Table / Grid</option>
+			<option value="rect" data-workspace="editor">Rectangle</option>
+			<option value="circle" data-workspace="editor" title="Draw a circle or ellipse (border-radius 50%); Shift+resize to lock aspect for a perfect circle">Circle / Ellipse</option>
+			<option value="line" data-workspace="editor" title="Draw a line; drag the corner handle to thicken for quick redaction bars">Line / Redact</option>
+        </optgroup>
+        <optgroup label="Fillable forms" data-workspace="form">
+            <option value="form_text" data-workspace="form">📝 Form: Text field</option>
+            <option value="form_checkbox" data-workspace="form">☑️ Form: Checkbox</option>
+            <option value="form_radio" data-workspace="form">🔘 Form: Radio button</option>
+            <option value="form_dropdown" data-workspace="form">📋 Form: Dropdown</option>
+            <option value="form_signature" data-workspace="form">✍️ Form: Signature field</option>
+        </optgroup>
+        <optgroup label="Actions" data-workspace="editor">
+            <option value="insert_image" data-workspace="editor">🖼️ Insert Image...</option>
+			<option value="insert_signature" data-workspace="editor">✍️ Insert Signature...</option>
+            <option value="toggle_smoothing" data-workspace="both">🔄 Toggle Smoothing</option>
+        </optgroup>
+    </select>
+
+    <input type="file" id="imageInput" accept="image/*" style="display: none;">
+    
+    <div class="header-divider"></div>
+    
+    <!-- Labels show on wide screens; collapse to icons under ~1400px (see assets/css/style.css) -->
+	<button type="button" id="undoBtn" class="header-action-btn" title="Undo (Ctrl+Z)" aria-label="Undo">
+        <span class="btn-icon" aria-hidden="true">↩️</span><span class="btn-label">Undo</span>
+    </button>
+    <button type="button" id="redoBtn" class="header-action-btn" title="Redo (Ctrl+Y)" aria-label="Redo">
+        <span class="btn-icon" aria-hidden="true">↪️</span><span class="btn-label">Redo</span>
+    </button>
+    <button type="button" id="historyToggleBtn" class="header-action-btn" title="Pages &amp; History" aria-label="Pages and History">
+        <span class="btn-icon" aria-hidden="true">🗂️</span><span class="btn-label">Pages &amp; History</span>
+    </button>
+    <div class="header-divider"></div>
+    <button type="button" id="zoomOutBtn" class="header-icon-btn zoom-btn" title="Zoom Out" aria-label="Zoom out">&minus;</button>
+    <span id="zoomLabel" title="Current zoom">100%</span>
+    <button type="button" id="zoomInBtn" class="header-icon-btn zoom-btn" title="Zoom In" aria-label="Zoom in">&plus;</button>
+    <div class="header-divider header-divider-end"></div>
+    <button type="button" id="helpBtn" class="header-icon-btn help-btn" title="Keyboard Shortcuts" aria-label="Help">?</button>
+</div>
+
+<div id="sigModal" class="modal" style="display: none;">
+    <div id="sigModalHeader">
+        <h3>Create Signature</h3>
+        <button id="closeSigBtn">&times;</button>
+    </div>
+    <input type="text" id="sigInput" placeholder="Type your name..." autocomplete="off">
+    <div id="sigPreviews"></div>
+</div>
+<div id="editModal" class="modal">
+    <div id="editModalHeader">
+        <h3>Stamp Text Block</h3>
+        <button id="closeEditModalBtn">&times;</button>
+    </div>
+    
+    <div id="editModalToolbarContainer"></div>
+	<div id="editModalTextWrapper">
+		<div id="editModalText" contenteditable="true"></div>
+    </div>
+	
+    <div class="editModalControls">
+        <label>Fill: <input type="color" id="editModalBgColor" value="#ffffff"></label>
+        <label>Border: <input type="color" id="editModalBorderColor" value="#000000"></label>
+        <label><input type="checkbox" id="editModalNoBorder" checked> No Border</label>
+    </div>
+
+    <button id="applyEditModalBtn">Stamp Edit</button>
+</div>
+
+<!-- Multi-doc root: each open document keeps its own .doc-viewer (canvas preserved) -->
+<div id="workspaceRoot">
+    <div id="viewer" class="doc-viewer is-active-doc" role="tabpanel"></div>
+</div>
+
+<div id="guide-vertical" class="snap-guide"></div>
+<div id="guide-horizontal" class="snap-guide"></div>
+<div id="historySidebar">
+    <div class="panel-tabs">
+        <button class="panel-tab active" data-target="pagesTab">Pages</button>
+        <button class="panel-tab" data-target="historyTab">History</button>
+        <button id="closeHistoryBtn">&times;</button>
+    </div>
+    
+    <div id="pagesTab" class="panel-content active">
+        <button id="insertPdfBtn" style="width: 100%; background: #28a745; color: white; padding: 8px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 10px;">➕ Insert PDF</button>
+        <input type="file" id="insertPdfInput" accept="application/pdf" multiple style="display: none;">
+        <div id="pageThumbList"></div>
+    </div>
+
+    <div id="historyTab" class="panel-content">
+        <div id="historyList"></div>
+    </div>
+</div>
+<!-- HELP MODAL -->
+<div id="helpModal" class="modal" style="display: none;" aria-labelledby="helpModalTitle">
+    <div class="modal-content help-modal-content">
+        <div id="helpModalHeader" class="modal-header">
+            <div class="help-header-text">
+                <h3 id="helpModalTitle">Keyboard shortcuts</h3>
+                <p class="help-header-sub">Editor, Form mode, and canvas tips</p>
+            </div>
+            <button type="button" id="closeHelpBtn" class="close-btn" title="Close" aria-label="Close help">×</button>
+        </div>
+        <div id="hotkeysContainer"></div>
+        <div class="help-footer">
+            <span>Tools also live in the top toolbar.</span>
+            <span class="help-footer-sep">·</span>
+            <span>Press <kbd class="help-kbd">Esc</kbd> for Pointer / to close modals.</span>
+        </div>
+    </div>
+</div>
+<div id="dragOverlay" style="display: none;">
+    <div id="dragOverlayText">Drop File Here</div>
+</div>
+
+<div id="dropChoiceModal"  class="modal" style="display: none;">
+    <div class="drop-modal-content">
+        <h3>How would you like to load this PDF?</h3>
+        <div class="drop-btn-group">
+            <button id="dropAppendBtn" class="drop-btn success">➕ Append to Current</button>
+            <button id="dropNewBtn" class="drop-btn primary">📄 Open as New Tab</button>
+            <button id="dropCancelBtn" class="drop-btn danger">❌ Cancel</button>
+        </div>
+    </div>
+</div>
+<div id="insertChoiceModal" class="modal" style="display: none;">
+    <div class="drop-modal-content">
+        <h3>Where would you like to insert the PDF(s)?</h3>
+        <div class="drop-btn-group">
+            <button id="insertTopBtn" class="drop-btn primary">⬆️ At Top</button>
+            <button id="insertCurrentBtn" class="drop-btn success">📄 After Current Page</button>
+            <button id="insertBottomBtn" class="drop-btn primary">⬇️ At Bottom</button>
+        </div>
+        <div class="drop-btn-group" style="margin-top: 10px;">
+            <button id="insertCancelBtn" class="drop-btn danger" style="width: 100%;">❌ Cancel</button>
+        </div>
+    </div>
+</div>
+<div id="pendingProjectModal" style="display: none;">
+    <div class="drop-modal-content" style="text-align: center;">
+        <h3 style="color: #0af;">💾 Save State Staged!</h3>
+        <p id="pendingProjectText" style="margin-bottom: 20px;">We loaded your progress for <strong>document.pdf</strong>.</p>
+        <p>Please open that PDF now to apply your edits.</p>
+        <div class="drop-btn-group" style="margin-top: 20px;">
+            <button id="pendingProjectOpenBtn" class="drop-btn success" style="width: 100%;">📂 Open PDF Document</button>
+            <button id="pendingProjectCancelBtn" class="drop-btn danger" style="width: 100%;">❌ Cancel & Discard State</button>
+        </div>
+    </div>
+</div>
+<div id="alertModal" style="display: none;">
+    <div class="drop-modal-content" style="text-align: center; max-width: 400px;">
+        <h3 id="alertModalTitle" style="color: #ff5722; margin-top: 0;">⚠️ Attention</h3>
+        <p id="alertModalText" style="margin-bottom: 20px; font-size: 15px; line-height: 1.4;"></p>
+        <button id="alertModalOkBtn" class="drop-btn primary" style="width: 100%;">OK</button>
+    </div>
+</div>
+
+<div id="confirmModal" style="display: none;">
+    <div class="drop-modal-content" style="text-align: center; max-width: 400px;">
+        <h3 id="confirmModalTitle" style="color: #ffc107; margin-top: 0;">❓ Please Confirm</h3>
+        <p id="confirmModalText" style="margin-bottom: 20px; font-size: 15px; line-height: 1.4;"></p>
+        <div class="drop-btn-group">
+            <button id="confirmModalYesBtn" class="drop-btn success">Yes</button>
+            <button id="confirmModalNoBtn" class="drop-btn danger">Cancel</button>
+        </div>
+    </div>
+</div>
+<div id="passwordModal" style="display: none;">
+    <div class="drop-modal-content" style="text-align: center; max-width: 400px;">
+        <h3 id="passwordModalTitle" style="color: #0af; margin-top: 0;">🔒 Password required</h3>
+        <p id="passwordModalText" style="margin-bottom: 14px; font-size: 15px; line-height: 1.4;">This PDF is password-protected.</p>
+        <input type="password" id="passwordModalInput" autocomplete="current-password"
+            placeholder="Enter password"
+            style="width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+        <p id="passwordModalHint" style="display: none; margin: 0 0 12px; font-size: 13px; color: #c0392b;"></p>
+        <div class="drop-btn-group">
+            <button type="button" id="passwordModalOkBtn" class="drop-btn success">Unlock</button>
+            <button type="button" id="passwordModalCancelBtn" class="drop-btn danger">Cancel</button>
+        </div>
+    </div>
+</div>
+<div id="saveAsModal" style="display: none;">
+    <div class="drop-modal-content" style="text-align: center; max-width: 400px;">
+        <h3 id="saveAsModalTitle" style="color: #4CAF50; margin-top: 0;">💾 Save Project As</h3>
+        <p style="margin-bottom: 15px; font-size: 15px; line-height: 1.4;">Enter a name for your save file:</p>
+        
+        <input type="text" id="saveAsInput" style="width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 14px; outline: none;">
+        
+        <div class="drop-btn-group">
+            <button id="saveAsConfirmBtn" class="drop-btn success">Save File</button>
+            <button id="saveAsCancelBtn" class="drop-btn danger">Cancel</button>
+        </div>
+    </div>
+</div>
+<div id="exportQualityModal" class="modal" style="display: none;">
+    <div class="drop-modal-content" style="max-width: 450px; text-align: left;">
+        <h3 style="color: #4CAF50; margin-top: 0; text-align: center;">🖨️ Export PDF</h3>
+        <p style="font-size: 14px; color: #555; margin-bottom: 15px; text-align: center;">Higher quality yields crisper text but larger files and slower export.</p>
+        
+        <label for="exportQualitySelect" style="font-size: 13px; font-weight: 700; color: #333; display: block; margin-bottom: 6px;">Annotation quality</label>
+        <select id="exportQualitySelect" style="width: 100%; padding: 10px; margin-bottom: 18px; border-radius: 4px; border: 1px solid #ccc; font-size: 15px; outline: none; box-sizing: border-box;">
+            <option value="1">Draft (Fastest, Smallest File, 1x Scale)</option>
+            <option value="2" selected>Standard (Good Balance, 2x Scale)</option>
+            <option value="3">High (Crisp Text, Larger File, 3x Scale)</option>
+            <option value="4">Ultra (Print Quality, Massive File, 4x Scale)</option>
+        </select>
+
+        <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; margin-bottom: 18px; background: #f8fafc;">
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: #1e3a5f; cursor: pointer; user-select: none;">
+                <input type="checkbox" id="exportPasswordEnable" style="width: 16px; height: 16px;">
+                Password-protect this PDF
+            </label>
+            <p style="font-size: 12px; color: #64748b; margin: 8px 0 0; line-height: 1.4;">
+                Optional. Encrypts the file so a password is required to open it. The password is not stored by the app. Forgotten passwords cannot be recovered.
+            </p>
+            <div id="exportPasswordFields" style="display: none; margin-top: 12px;">
+                <label for="exportPasswordInput" style="font-size: 12px; font-weight: 600; color: #475569; display: block; margin-bottom: 4px;">Password</label>
+                <input type="password" id="exportPasswordInput" autocomplete="new-password" style="width: 100%; padding: 9px 10px; margin-bottom: 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; box-sizing: border-box;">
+                <label for="exportPasswordConfirm" style="font-size: 12px; font-weight: 600; color: #475569; display: block; margin-bottom: 4px;">Confirm password</label>
+                <input type="password" id="exportPasswordConfirm" autocomplete="new-password" style="width: 100%; padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 14px; box-sizing: border-box;">
+            </div>
+        </div>
+
+        <div class="drop-btn-group" style="margin-top: 8px;">
+            <button type="button" id="exportQualityConfirmBtn" class="drop-btn success">Export PDF</button>
+            <button type="button" id="exportQualityCancelBtn" class="drop-btn danger">Cancel</button>
+        </div>
+    </div>
+</div>
+<!-- Dropdown / list options editor for fillable form fields -->
+<div id="formOptionsModal" style="display: none;">
+    <div class="drop-modal-content" style="text-align: left; max-width: 480px; width: 92vw;">
+        <h3 id="formOptionsModalTitle" style="color: #7c3aed; margin-top: 0;">📋 Dropdown options</h3>
+        <p id="formOptionsModalHelp" style="font-size: 14px; color: #555; margin: 0 0 14px; line-height: 1.4;">
+            Each row is one choice the person filling the PDF will see.
+        </p>
+        <div id="formOptionsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow-y: auto; margin-bottom: 12px;"></div>
+        <button type="button" id="formOptionsAddBtn" class="drop-btn primary" style="width: 100%; margin-bottom: 16px; background: #7c3aed;">＋ Add option</button>
+        <div class="drop-btn-group">
+            <button type="button" id="formOptionsConfirmBtn" class="drop-btn success">Save options</button>
+            <button type="button" id="formOptionsCancelBtn" class="drop-btn danger">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<div id="xrayIndicator">🔍 X-Ray Active</div>
+<div id="printArea" style="display: none;"></div>
+</body>
+</html>
