@@ -35,7 +35,7 @@ window.applySmartZoom = function(targetZoom, mouseX = null, mouseY = null) {
 
     const zoomRatio = targetZoom / window.currentZoom;
 
-    // 1. Run your existing visual zoom function
+    // Run your existing visual zoom function
     window.setZoom(targetZoom);
 
     // Force layout reflow after zoom
@@ -44,13 +44,13 @@ window.applySmartZoom = function(targetZoom, mouseX = null, mouseY = null) {
     // and acknowledge the new boundaries BEFORE we try to move the scrollbar!
     void viewer.scrollHeight;
 
-    // 3. Apply the perfect scroll position
+    // Apply the perfect scroll position
     viewer.scrollLeft = (docX * zoomRatio) - offsetX;
     viewer.scrollTop = (docY * zoomRatio) - offsetY;
 };
 
 
-// --- UI Buttons ---
+// === UI Buttons ===
 document.getElementById("zoomInBtn").addEventListener("click", () => window.applySmartZoom(window.currentZoom + APP.ZOOM_STEP));
 document.getElementById("zoomOutBtn").addEventListener("click", () => window.applySmartZoom(window.currentZoom - APP.ZOOM_STEP));
 

@@ -2,13 +2,13 @@
 // selection.js: MARQUEE ALIGNMENT & GROUPS
 // ==========================================
 
-// --- Snap / alignment guides ---
+// === Snap / alignment guides ===
 let groupToolbarEl = null;
 
 window.rebuildGroupSelection = function(items,oGBounds) {
     if (!items || items.length === 0) return;
 
-    // 1. Clear whatever is currently selected
+    // Clear whatever is currently selected
     if (window.clearMultiSelection) window.clearMultiSelection();
 
     const targetContainer = items[0].closest(".pageContainer");
@@ -25,7 +25,7 @@ window.rebuildGroupSelection = function(items,oGBounds) {
         APP.multiSelectedItems.add(el);
     });
 
-    // 3. Rebuild the bounding math
+    // Rebuild the bounding math
     window.activeMarqueeBounds = {
         left: oGBounds.left, top: oGBounds.top, width: oGBounds.width, height: oGBounds.height,
         right: oGBounds.right, bottom: oGBounds.bottom,
@@ -33,7 +33,7 @@ window.rebuildGroupSelection = function(items,oGBounds) {
     };
     window.activeSelectionContainer = targetContainer;
 
-    // 4. Redraw the physical Stencil Box
+    // Redraw the physical Stencil Box
     const stencil = document.createElement("div");
     stencil.className = "stencil-box";
     stencil.style.left = oGBounds.left + "px";
@@ -49,7 +49,7 @@ window.rebuildGroupSelection = function(items,oGBounds) {
     targetContainer.appendChild(stencil);
     window.activeStencil = stencil;
 
-    // 5. Reattach the drag listeners and show the toolbar
+    // Reattach the drag listeners and show the toolbar
     window.makeDraggable(window.activeStencil, null, dragHandle);
     if (APP.multiSelectedItems.size >= 1 && window.showGroupToolbar) {
         window.showGroupToolbar();

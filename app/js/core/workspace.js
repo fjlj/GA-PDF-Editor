@@ -16,6 +16,144 @@
     let seq = 0;
     let bootstrapped = false;
     let persistTimer = null;
+    // One queue for open/restore so they don't play chicken mid-render
+    let opChain = Promise.resolve();
+    let startupOpenCount = 0;
+    let startupOpenWaiters = [];
+    // Snapshot of "what was open last time" for the Restore bar.
+    // Do NOT re-read IDB after open — open's persist rewrites history and Restore
+    // becomes "duplicate of the file you just opened." Classic.
+    let pendingRestorePayload = null;
+    // While true: hands off workspace-v1 in IDB (freeze the past until Restore/Dismiss)
+    let sessionPersistHold = false;
+
+    function runSerialized(fn) {
+        const run = opChain.then(() => fn());
+        opChain = run.catch((e) => {
+            console.warn("[workspace] serialized op failed", e);
+        });
+        return run;
+    }
+
+    function cloneSessionPayload(payload) {
+        if (!payload || typeof payload !== "object") return null;
+        const tabs = Array.isArray(payload.tabs) ? payload.tabs : [];
+        return {
+            v: payload.v,
+            activeId: payload.activeId || null,
+            tabs: tabs.map((t) => {
+                if (!t || typeof t !== "object") return null;
+                return {
+                    id: t.id || null,
+                    title: t.title || null,
+                    pdfName: t.pdfName || null,
+                    zoom: t.zoom,
+                    fileHandle: t.fileHandle || null,
+                    blobKey: t.blobKey || null,
+                    hasContent: !!t.hasContent
+                };
+            }).filter(Boolean)
+        };
+    }
+
+    function countRestorableTabs(payload) {
+        if (!payload || !Array.isArray(payload.tabs)) return 0;
+        return payload.tabs.filter((t) => t && (t.fileHandle || t.blobKey || t.hasContent)).length;
+    }
+
+    function normalizeDocName(name) {
+        return stripName(name || "").toLowerCase();
+    }
+
+    function openDocFingerprints() {
+        const names = new Set();
+        const handles = [];
+        docs.forEach((d) => {
+            if (!d) return;
+            if (pageCountIn(d.viewer) === 0 && isPlaceholderName(d.title || d.pdfName)) return;
+            const n = normalizeDocName(d.pdfName || d.title);
+            if (n && !isPlaceholderName(n)) names.add(n);
+            if (d.fileHandle) handles.push(d.fileHandle);
+        });
+        return { names, handles };
+    }
+
+    async function handlesAreSame(a, b) {
+        if (!a || !b || typeof a.isSameEntry !== "function") return false;
+        try {
+            return !!(await a.isSameEntry(b));
+        } catch (_) {
+            return false;
+        }
+    }
+
+    async function sessionTabMatchesOpen(tab, open) {
+        if (!tab || !open) return false;
+        if (tab.fileHandle && open.handles && open.handles.length) {
+            for (let i = 0; i < open.handles.length; i++) {
+                if (await handlesAreSame(tab.fileHandle, open.handles[i])) return true;
+            }
+        }
+        const n = normalizeDocName(tab.pdfName || tab.title);
+        if (n && !isPlaceholderName(n) && open.names && open.names.has(n)) return true;
+        return false;
+    }
+
+    async function filterPayloadExcludingOpen(payload) {
+        if (!payload || !Array.isArray(payload.tabs)) return payload;
+        const open = openDocFingerprints();
+        if (open.names.size === 0 && open.handles.length === 0) return payload;
+
+        const tabs = [];
+        for (const t of payload.tabs) {
+            if (!t) continue;
+            if (await sessionTabMatchesOpen(t, open)) continue;
+            tabs.push(t);
+        }
+        return {
+            v: payload.v,
+            activeId: payload.activeId || null,
+            tabs
+        };
+    }
+
+    function releaseSessionPersistHold() {
+        sessionPersistHold = false;
+        pendingRestorePayload = null;
+        schedulePersist();
+    }
+
+    function noteStartupOpen(n) {
+        const count = Math.max(0, Number(n) || 0);
+        if (count <= 0) return;
+        startupOpenCount += count;
+        const waiters = startupOpenWaiters.slice();
+        startupOpenWaiters = [];
+        waiters.forEach((w) => {
+            try { w(); } catch (_) { /* ignore */ }
+        });
+    }
+
+    function waitForStartupOpens(maxMs) {
+        const budget = Math.max(0, Number(maxMs) || 0);
+        return new Promise((resolve) => {
+            let settled = false;
+            const finish = () => {
+                if (settled) return;
+                settled = true;
+                resolve(startupOpenCount);
+            };
+            if (startupOpenCount > 0) {
+                setTimeout(finish, 50);
+                return;
+            }
+            const timer = setTimeout(finish, budget);
+            startupOpenWaiters.push(() => {
+                clearTimeout(timer);
+                setTimeout(finish, 80);
+            });
+        });
+    }
 
     /**
      * @typedef {Object} DocRecord
@@ -88,19 +226,18 @@
         }
         doc.zoom = global.currentZoom || doc.zoom || defaultZoom();
 
-        // Prefer a real live filename; never let leftover "Untitled" / "document.pdf"
-        // from an empty shell overwrite a title set via setActiveTitle.
+        // Real filenames stick. Empty shells stay Untitled — not the fake "document.pdf" cosplay.
         const live = global.currentPdfName;
         if (live && !isPlaceholderName(live)) {
             doc.pdfName = live;
-        } else if (!doc.pdfName || isPlaceholderName(doc.pdfName)) {
-            doc.pdfName = live || doc.pdfName || doc.title || "document.pdf";
-        }
-        // If bag already has a real name, keep it (and re-sync the global)
-        if (doc.pdfName && !isPlaceholderName(doc.pdfName)) {
+            doc.title = stripName(live);
+        } else if (doc.pdfName && !isPlaceholderName(doc.pdfName)) {
             global.currentPdfName = doc.pdfName;
+            doc.title = stripName(doc.pdfName);
+        } else {
+            doc.pdfName = "Untitled";
+            doc.title = "Untitled";
         }
-        doc.title = stripName(doc.pdfName || doc.title);
 
         if (global.historyEngine) {
             doc.undoStack = global.historyEngine.undoStack || [];
@@ -138,6 +275,40 @@
             || s === "document"
             || s === "document.pdf"
             || s === "document.gapdf";
+    }
+
+    // "Spare" = secret empty pane so APP.DOM.viewer always has a home.
+    // Not a real tab until content lands or it's the only thing left.
+    function isSpareShell(doc) {
+        return !!(doc && doc.spare);
+    }
+
+    function isEmptyShell(doc) {
+        if (!doc) return true;
+        return pageCountIn(doc.viewer) === 0 && !doc.fileHandle;
+    }
+
+    // Tab bar guest list: real tabs always. Spares only when flying solo.
+    function isTabVisible(doc) {
+        if (!doc) return false;
+        if (!isSpareShell(doc)) return true;
+        if (!isEmptyShell(doc)) {
+            doc.spare = false; // grew up — has pages now
+            return true;
+        }
+        let others = 0;
+        docs.forEach((d) => {
+            if (d && d.id !== doc.id && !isSpareShell(d)) others += 1;
+            else if (d && d.id !== doc.id && isSpareShell(d) && !isEmptyShell(d)) others += 1;
+        });
+        return others === 0;
+    }
+
+    function promoteIfNeeded(doc) {
+        if (!doc || !doc.spare) return;
+        if (!isEmptyShell(doc) || (doc.pdfName && !isPlaceholderName(doc.pdfName))) {
+            doc.spare = false;
+        }
     }
 
     /**
@@ -247,8 +418,8 @@
     }
 
     /**
-     * Create a new document pane (empty). Does not activate unless activate=true.
-     * @param {{ title?: string, fileHandle?: FileSystemFileHandle|null, activate?: boolean }} [opts]
+     * Mint a document pane. spare:true = invisible workspace anchor (not a cosplay tab).
+     * @param {{ title?: string, fileHandle?: *, activate?: boolean, spare?: boolean }} [opts]
      */
     function createDocument(opts = {}) {
         const id = uid();
@@ -267,7 +438,7 @@
             viewer,
             zoom: defaultZoom(),
             scrollTop: 0,
-            pdfName: opts.title || "document.pdf",
+            pdfName: (opts.title && !isPlaceholderName(opts.title)) ? opts.title : (opts.title || "Untitled"),
             fileHandle: opts.fileHandle || null,
             undoStack: [],
             redoStack: [],
@@ -276,11 +447,12 @@
             currentMode: "select",
             isPixelated: false,
             sourcePdfBuffers: null,
-            dirty: false
+            dirty: false,
+            spare: !!opts.spare // hidden until useful (or until it's lonely)
         };
         docs.set(id, doc);
 
-        // Enforce max tabs (tabbed only)
+        // Soft cap — oldest tab walks the plank
         if (tabbed() && docs.size > maxTabs()) {
             const oldest = docs.keys().next().value;
             if (oldest && oldest !== id) {
@@ -299,12 +471,18 @@
         return doc;
     }
 
-    /**
-     * Ensure at least one document exists and is active (for single-canvas ops).
-     */
+    // Always have *somewhere* to put pixels. Reuse spare if we can.
     function ensureActiveDocument() {
         if (activeDoc()) return activeDoc();
-        return createDocument({ title: "Untitled", activate: true });
+        let spare = null;
+        docs.forEach((d) => {
+            if (!spare && isSpareShell(d) && isEmptyShell(d)) spare = d;
+        });
+        if (spare) {
+            applyDoc(spare);
+            return spare;
+        }
+        return createDocument({ title: "Untitled", activate: true, spare: true });
     }
 
     function activateDocument(id) {
@@ -312,6 +490,19 @@
         if (id === activeId) return;
         stashActive();
         applyDoc(docs.get(id));
+    }
+
+    // Close focus: right neighbor first, else left. Browser/VS Code vibes.
+    // (Old code grabbed Map.first → often a hidden spare → blank screen. Nope.)
+    function neighborDocId(closedId, orderedIds) {
+        const ids = Array.isArray(orderedIds) ? orderedIds : Array.from(docs.keys());
+        const idx = ids.indexOf(closedId);
+        if (idx < 0) {
+            return ids.find((i) => i !== closedId) || null;
+        }
+        if (idx + 1 < ids.length) return ids[idx + 1];
+        if (idx - 1 >= 0) return ids[idx - 1];
+        return null;
     }
 
     async function closeDocument(id, opts = {}) {
@@ -335,7 +526,10 @@
         const wasActive = id === activeId;
         if (wasActive) stashActive();
 
-        // Drop page DOM + buffers tied only to this viewer
+        // Order BEFORE delete — Map insertion ≈ tab strip order
+        const orderedIds = Array.from(docs.keys());
+        const focusId = wasActive ? neighborDocId(id, orderedIds) : null;
+
         if (doc.viewer && doc.viewer.parentNode) {
             doc.viewer.parentNode.removeChild(doc.viewer);
         }
@@ -344,12 +538,14 @@
 
         if (wasActive) {
             activeId = null;
-            const next = docs.keys().next().value;
-            if (next) {
-                applyDoc(docs.get(next));
+            if (focusId && docs.has(focusId)) {
+                applyDoc(docs.get(focusId));
+            } else if (docs.size > 0) {
+                const fallback = docs.keys().next().value;
+                if (fallback) applyDoc(docs.get(fallback));
             } else if (!opts.forceEmpty) {
-                // Keep one empty shell so APP.DOM.viewer stays valid
-                createDocument({ title: "Untitled", activate: true });
+                // Last tab closed → quiet spare so tools still have a canvas
+                createDocument({ title: "Untitled", activate: true, spare: true });
             } else if (global.APP && global.APP.DOM) {
                 global.APP.DOM.viewer = null;
             }
@@ -413,9 +609,9 @@
         for (const id of ids) {
             await closeDocument(id, { skipConfirm: true, forceEmpty: true });
         }
-        // Leave one empty shell
+        // Close-all still needs a canvas hideout
         if (docs.size === 0) {
-            createDocument({ title: "Untitled", activate: true });
+            createDocument({ title: "Untitled", activate: true, spare: true });
         }
         updateDocumentTitle();
         renderTabBar();
@@ -423,18 +619,31 @@
         return true;
     }
 
-    function setActiveTitle(name, fileHandle) {
-        const doc = activeDoc() || ensureActiveDocument();
+    /**
+     * Set title/handle on a specific doc bag (not "whatever is active").
+     * Critical during multi-tab open/restore races.
+     */
+    function setDocTitle(doc, name, fileHandle) {
+        if (!doc) return;
         if (name) {
             doc.pdfName = name;
             doc.title = stripName(name);
-            // Keep global in sync so stashActive / export never reverts to Untitled
-            global.currentPdfName = name;
+            if (doc.id === activeId) {
+                global.currentPdfName = name;
+            }
         }
-        if (fileHandle) doc.fileHandle = fileHandle;
-        updateDocumentTitle();
+        if (fileHandle !== undefined) {
+            doc.fileHandle = fileHandle || null;
+        }
+        promoteIfNeeded(doc); // real name? you're a real tab now
+        if (doc.id === activeId) updateDocumentTitle();
         renderTabBar();
         schedulePersist();
+    }
+
+    function setActiveTitle(name, fileHandle) {
+        const doc = activeDoc() || ensureActiveDocument();
+        setDocTitle(doc, name, fileHandle);
     }
 
     function setActiveFileHandle(handle) {
@@ -461,7 +670,10 @@
         bar.setAttribute("role", "tablist");
         bar.setAttribute("aria-label", "Open documents");
 
+        // Spares crash the party only when they're the only guest
         docs.forEach((doc) => {
+            if (!isTabVisible(doc)) return;
+
             const tab = document.createElement("button");
             tab.type = "button";
             tab.className = "doc-tab" + (doc.id === activeId ? " is-active" : "");
@@ -498,7 +710,7 @@
             bar.appendChild(tab);
         });
 
-        // New tab button
+        // "+" = user asked for a real empty tab (visible). Not a sneaky spare.
         const add = document.createElement("button");
         add.type = "button";
         add.className = "doc-tab-add";
@@ -506,18 +718,21 @@
         add.setAttribute("aria-label", "New tab");
         add.textContent = "+";
         add.addEventListener("click", () => {
-            createDocument({ title: "Untitled", activate: true });
+            createDocument({ title: "Untitled", activate: true, spare: false });
         });
         bar.appendChild(add);
     }
 
-    // --- Session persistence ---
+    // === Session persistence ===
 
     function schedulePersist() {
         if (!sessionOn() || !global.GaIdb) return;
+        // Restore bar is up — leave the frozen past alone
+        if (sessionPersistHold) return;
         if (persistTimer) clearTimeout(persistTimer);
         persistTimer = setTimeout(() => {
             persistTimer = null;
+            if (sessionPersistHold) return;
             persistSession().catch((e) => console.warn("[workspace] persist failed", e));
         }, 200);
     }
@@ -566,20 +781,25 @@
 
     async function persistSession() {
         if (!sessionOn() || !global.GaIdb) return;
+        if (sessionPersistHold) {
+            return; // frozen session still on ice
+        }
         stashActive();
         const store = global.GaIdb.sessionStore();
         const key = cfg("sessionStoreKey", "workspace-v1");
+        // Spares/empties don't get a seat on the time machine
+        const tabDocs = Array.from(docs.values()).filter(
+            (d) => (pageCountIn(d.viewer) > 0 || d.fileHandle) && !isSpareShell(d)
+        );
         const payload = {
             v: 2,
-            activeId,
-            tabs: Array.from(docs.values()).map((d) => ({
+            activeId: (tabDocs.some((d) => d.id === activeId) ? activeId : (tabDocs[0] && tabDocs[0].id)) || null,
+            tabs: tabDocs.map((d) => ({
                 id: d.id,
                 title: d.title,
                 pdfName: d.pdfName,
                 zoom: d.zoom,
-                // FileSystemFileHandle is structured-cloneable into IDB (when present)
                 fileHandle: d.fileHandle || null,
-                // PDF bytes cached separately under blobKey (see rememberDocBytes)
                 blobKey: d.blobKey || (pageCountIn(d.viewer) > 0 ? blobKeyFor(d.id) : null),
                 hasContent: pageCountIn(d.viewer) > 0
             }))
@@ -587,18 +807,42 @@
         await store.set(key, payload);
     }
 
-    async function maybeOfferSessionRestore() {
-        if (!sessionOn() || !tabbed() || !global.GaIdb) return;
-        let payload;
+    async function readSessionPayloadFromIdb() {
+        if (!global.GaIdb) return null;
         try {
-            payload = await global.GaIdb.sessionStore().get(cfg("sessionStoreKey", "workspace-v1"));
-        } catch (_) {
+            return await global.GaIdb.sessionStore().get(cfg("sessionStoreKey", "workspace-v1"));
+        } catch (e) {
+            console.warn("[workspace] session read failed", e);
+            return null;
+        }
+    }
+
+    /**
+     * Show Restore/Dismiss bar for a frozen prior session.
+     * @param {object} [payloadOverride]
+     */
+    async function maybeOfferSessionRestore(payloadOverride) {
+        if (!sessionOn() || !tabbed() || !global.GaIdb) return;
+        if (document.getElementById("ga-session-restore-bar")) return;
+
+        let payload = payloadOverride || pendingRestorePayload;
+        if (!payload) {
+            payload = await readSessionPayloadFromIdb();
+        }
+        payload = cloneSessionPayload(payload);
+        if (!payload) return;
+
+        // Re-opened the same file? No "Restore 1" duplicate cosplay please
+        payload = await filterPayloadExcludingOpen(payload);
+
+        const n = countRestorableTabs(payload);
+        if (n === 0) {
+            releaseSessionPersistHold();
             return;
         }
-        if (!payload || !Array.isArray(payload.tabs)) return;
-        const n = payload.tabs.filter((t) => t && (t.fileHandle || t.blobKey || t.hasContent)).length;
-        if (n === 0) return;
-        if (document.getElementById("ga-session-restore-bar")) return;
+
+        pendingRestorePayload = payload;
+        sessionPersistHold = true;
 
         const bar = document.createElement("div");
         bar.id = "ga-session-restore-bar";
@@ -619,9 +863,34 @@
         no.style.cssText = "background:transparent;color:#ccc;border:1px solid #555;border-radius:4px;padding:6px 12px;cursor:pointer;";
         yes.addEventListener("click", async () => {
             bar.remove();
-            await restoreSession({ forcePrompt: true });
+            yes.disabled = true;
+            no.disabled = true;
+            // Soft toast only — multi-page restore streams like a normal open. No disco dim.
+            let ownsGate = false;
+            try {
+                if (typeof global.beginDocGate === "function") {
+                    global.beginDocGate("session-restore");
+                    ownsGate = true;
+                }
+                if (typeof global.setDocLoadStatus === "function") {
+                    global.setDocLoadStatus(
+                        `Restoring ${n} document(s)…  ·  Save/print wait until done`
+                    );
+                }
+                await restoreSession({ forcePrompt: true, payload: pendingRestorePayload });
+            } finally {
+                if (ownsGate && typeof global.endDocGate === "function") {
+                    try { global.endDocGate(); } catch (_) { /* ignore */ }
+                } else if (typeof global.setDocLoadStatus === "function") {
+                    global.setDocLoadStatus(null);
+                }
+                releaseSessionPersistHold();
+            }
         });
-        no.addEventListener("click", () => bar.remove());
+        no.addEventListener("click", () => {
+            bar.remove();
+            releaseSessionPersistHold(); // keep only what they just opened
+        });
         bar.appendChild(yes);
         bar.appendChild(no);
         document.body.appendChild(bar);
@@ -629,26 +898,28 @@
 
     /**
      * Restore tabs that still have a FileSystemFileHandle (+ re-request permission).
-     * @param {{ forcePrompt?: boolean }} [opts]
+     * @param {{ forcePrompt?: boolean, payload?: object }} [opts]
      */
     async function restoreSession(opts = {}) {
+        return runSerialized(() => restoreSessionUnlocked(opts));
+    }
+
+    async function restoreSessionUnlocked(opts = {}) {
         if (!sessionOn() || !tabbed() || !global.GaIdb) return false;
         if (!global.isSecureContext) {
             console.info("[workspace] session restore skipped (insecure context)");
             return false;
         }
 
-        let payload;
-        try {
-            const store = global.GaIdb.sessionStore();
-            payload = await store.get(cfg("sessionStoreKey", "workspace-v1"));
-        } catch (e) {
-            console.warn("[workspace] session read failed", e);
-            return false;
+        let payload = opts.payload || pendingRestorePayload || null;
+        if (!payload) {
+            payload = await readSessionPayloadFromIdb();
         }
+        payload = cloneSessionPayload(payload);
         if (!payload || !Array.isArray(payload.tabs) || payload.tabs.length === 0) return false;
 
-        // Restorable = has handle and/or cached PDF bytes
+        payload = await filterPayloadExcludingOpen(payload);
+
         const restorable = payload.tabs.filter(
             (t) => t && (t.fileHandle || t.blobKey || t.hasContent)
         );
@@ -657,6 +928,10 @@
         const store = global.GaIdb.sessionStore();
         let restored = 0;
         let needsGesture = false;
+        /** @type {Map<string, string>} */
+        const idMap = new Map();
+        let lastRestoredId = null;
+        const alreadyOpenIds = new Set(Array.from(docs.keys()));
 
         for (const t of restorable) {
             try {
@@ -664,7 +939,6 @@
                 let handle = t.fileHandle || null;
                 let title = t.title || t.pdfName || "document.pdf";
 
-                // 1) Prefer live file handle (fresh bytes from disk)
                 if (handle && typeof handle.getFile === "function") {
                     let perm = "granted";
                     if (handle.queryPermission) {
@@ -688,7 +962,6 @@
                             title = file.name || title;
                         } catch (e) {
                             console.warn("[workspace] handle.getFile failed, trying blob cache", e);
-                            handle = handle; // keep for re-prompt
                             arrayBuffer = null;
                         }
                     } else {
@@ -696,7 +969,6 @@
                     }
                 }
 
-                // 2) Fallback: PDF bytes cached in IndexedDB
                 const tryKeys = [t.blobKey, t.id ? blobKeyFor(t.id) : null].filter(Boolean);
                 for (let ki = 0; !arrayBuffer && ki < tryKeys.length; ki++) {
                     try {
@@ -718,13 +990,15 @@
                     continue;
                 }
 
-                // Preserve original tab id when possible so blob keys stay stable
                 const doc = createDocument({
                     title,
                     fileHandle: handle,
-                    activate: false
+                    activate: false,
+                    spare: false
                 });
-                // Re-key blob under new id if we created a fresh id
+                if (t.id) idMap.set(t.id, doc.id);
+                lastRestoredId = doc.id;
+
                 if (t.blobKey && t.id && doc.id !== t.id) {
                     doc.blobKey = blobKeyFor(doc.id);
                     try {
@@ -734,14 +1008,22 @@
                     doc.blobKey = t.blobKey || blobKeyFor(doc.id);
                 }
                 doc.zoom = Number(t.zoom) > 0 ? Number(t.zoom) : defaultZoom();
-                doc.pdfName = t.pdfName || title;
+                doc.pdfName = title;
+                setDocTitle(doc, title, handle);
+
+                if (typeof global.setDocLoadStatus === "function") {
+                    const label = title || "document";
+                    global.setDocLoadStatus(
+                        `Restoring ${restored + 1}/${restorable.length}: ${label}  ·  Save/print wait until done`
+                    );
+                }
 
                 stashActive();
                 applyDoc(doc);
                 if (typeof global.renderPDF === "function") {
-                    await global.renderPDF(arrayBuffer, false);
+                    await global.renderPDF(arrayBuffer, false, { viewer: doc.viewer });
                 }
-                setActiveTitle(title, handle);
+                setDocTitle(doc, title, handle);
                 await rememberDocBytes(arrayBuffer, doc);
                 restored += 1;
             } catch (err) {
@@ -749,23 +1031,25 @@
             }
         }
 
-        // If nothing restored but handles need permission, surface the restore bar
         if (restored === 0 && needsGesture && !opts.forcePrompt) {
             return false;
         }
 
         if (restored > 0) {
-            // Drop leftover empty shell tabs from bootstrap
-            const empties = Array.from(docs.values()).filter(
-                (d) => pageCountIn(d.viewer) === 0 && !d.fileHandle
-            );
-            for (const d of empties) {
-                if (docs.size <= 1) break;
-                await closeDocument(d.id, { force: true, skipConfirm: true });
+            // Spares stay put but invisible — no blank "document.pdf" tab cosplay
+            const wantOld = payload.activeId;
+            const wantNew = (wantOld && idMap.get(wantOld)) || lastRestoredId;
+            if (wantNew && docs.has(wantNew)) {
+                activateDocument(wantNew);
+            } else if (lastRestoredId) {
+                activateDocument(lastRestoredId);
             }
-            if (payload.activeId && docs.has(payload.activeId)) {
-                activateDocument(payload.activeId);
-            }
+            docs.forEach((d) => {
+                if (isEmptyShell(d) && isPlaceholderName(d.title || d.pdfName)) {
+                    d.spare = true;
+                }
+            });
+            renderTabBar();
         }
 
         return restored > 0;
@@ -779,6 +1063,13 @@
     async function openFilesAsTabs(items, opts = {}) {
         const list = Array.from(items || []).filter(Boolean);
         if (list.length === 0) return;
+        noteStartupOpen(list.length);
+        return runSerialized(() => openFilesAsTabsUnlocked(items, opts));
+    }
+
+    async function openFilesAsTabsUnlocked(items, opts = {}) {
+        const list = Array.from(items || []).filter(Boolean);
+        if (list.length === 0) return;
 
         const normalized = list.map((item) => {
             if (item instanceof File) return { file: item, handle: null };
@@ -786,33 +1077,57 @@
             return null;
         }).filter(Boolean);
 
-        if (!tabbed() || opts.replaceActive) {
-            ensureActiveDocument();
-            const first = normalized[0];
-            setActiveTitle(first.file.name, first.handle);
-            if (typeof global.renderPDF === "function") {
-                await global.renderPDF(await first.file.arrayBuffer(), false);
+        const total = normalized.length;
+        const showBusy = total > 1 && typeof global.showLoading === "function";
+
+        try {
+            if (showBusy) {
+                global.showLoading(`Loading PDF 1 of ${total}…`);
             }
-            for (let i = 1; i < normalized.length; i++) {
-                await global.renderPDF(await normalized[i].file.arrayBuffer(), true);
+
+            if (!tabbed() || opts.replaceActive) {
+                const doc = ensureActiveDocument();
+                const first = normalized[0];
+                setDocTitle(doc, first.file.name, first.handle);
+                if (typeof global.renderPDF === "function") {
+                    await global.renderPDF(await first.file.arrayBuffer(), false, { viewer: doc.viewer });
+                }
+                for (let i = 1; i < normalized.length; i++) {
+                    if (showBusy) {
+                        global.showLoading(`Appending PDF ${i + 1} of ${total}…`);
+                    }
+                    await global.renderPDF(await normalized[i].file.arrayBuffer(), true, { viewer: doc.viewer });
+                }
+                setDocTitle(doc, first.file.name, first.handle);
+                schedulePersist();
+                return;
+            }
+
+            for (let i = 0; i < normalized.length; i++) {
+                if (showBusy) {
+                    global.showLoading(`Opening PDF ${i + 1} of ${total}…`);
+                }
+                const { file, handle } = normalized[i];
+                let doc = activeDoc();
+                const emptyActive = doc && pageCountIn(doc.viewer) === 0;
+                if (i === 0 && emptyActive) {
+                    setDocTitle(doc, file.name, handle);
+                } else {
+                    doc = createDocument({ title: file.name, fileHandle: handle, activate: true });
+                    setDocTitle(doc, file.name, handle);
+                }
+                await global.renderPDF(await file.arrayBuffer(), false, { viewer: doc.viewer });
+                setDocTitle(doc, file.name, handle);
+                if (doc.id !== activeId) {
+                    activateDocument(doc.id);
+                }
             }
             schedulePersist();
-            return;
-        }
-
-        for (let i = 0; i < normalized.length; i++) {
-            const { file, handle } = normalized[i];
-            const emptyActive = activeDoc() && pageCountIn(activeDoc().viewer) === 0;
-            if (i === 0 && emptyActive) {
-                setActiveTitle(file.name, handle);
-                await global.renderPDF(await file.arrayBuffer(), false);
-            } else {
-                createDocument({ title: file.name, fileHandle: handle, activate: true });
-                setActiveTitle(file.name, handle);
-                await global.renderPDF(await file.arrayBuffer(), false);
+        } finally {
+            if (showBusy && typeof global.hideLoading === "function") {
+                global.hideLoading();
             }
         }
-        schedulePersist();
     }
 
     /**
@@ -830,7 +1145,6 @@
                 const items = [];
                 for (const handle of launchParams.files) {
                     try {
-                        // Handles may be FileSystemFileHandle
                         if (handle && typeof handle.getFile === "function") {
                             const file = await handle.getFile();
                             items.push({ file, handle });
@@ -843,17 +1157,40 @@
 
                 const urlParams = new URLSearchParams(global.location.search);
                 const isCombineMode = urlParams.get("mode") === "combine";
+                noteStartupOpen(items.length);
+
                 if (isCombineMode && items.length > 1) {
-                    ensureActiveDocument();
-                    setActiveTitle(items[0].file.name, items[0].handle);
-                    await global.renderPDF(await items[0].file.arrayBuffer(), false);
-                    for (let i = 1; i < items.length; i++) {
-                        await global.renderPDF(await items[i].file.arrayBuffer(), true);
-                    }
-                    try {
-                        global.history.replaceState({}, document.title, global.location.pathname || "./");
-                    } catch (_) { /* ignore */ }
-                    schedulePersist();
+                    await runSerialized(async () => {
+                        const total = items.length;
+                        const showBusy = typeof global.showLoading === "function";
+                        try {
+                            if (showBusy) {
+                                global.showLoading(`Combining PDF 1 of ${total}…`);
+                            }
+                            const doc = ensureActiveDocument();
+                            setDocTitle(doc, items[0].file.name, items[0].handle);
+                            await global.renderPDF(await items[0].file.arrayBuffer(), false, {
+                                viewer: doc.viewer
+                            });
+                            for (let i = 1; i < items.length; i++) {
+                                if (showBusy) {
+                                    global.showLoading(`Combining PDF ${i + 1} of ${total}…`);
+                                }
+                                await global.renderPDF(await items[i].file.arrayBuffer(), true, {
+                                    viewer: doc.viewer
+                                });
+                            }
+                            setDocTitle(doc, items[0].file.name, items[0].handle);
+                            try {
+                                global.history.replaceState({}, document.title, global.location.pathname || "./");
+                            } catch (_) { /* ignore */ }
+                            schedulePersist();
+                        } finally {
+                            if (showBusy && typeof global.hideLoading === "function") {
+                                global.hideLoading();
+                            }
+                        }
+                    });
                     return;
                 }
 
@@ -912,7 +1249,9 @@
                 viewer: legacy,
                 zoom: global.currentZoom || defaultZoom(),
                 scrollTop: 0,
-                pdfName: global.currentPdfName || "document.pdf",
+                pdfName: (global.currentPdfName && !isPlaceholderName(global.currentPdfName))
+                    ? global.currentPdfName
+                    : "Untitled",
                 fileHandle: null,
                 undoStack: (global.historyEngine && global.historyEngine.undoStack) || [],
                 redoStack: (global.historyEngine && global.historyEngine.redoStack) || [],
@@ -921,13 +1260,14 @@
                 currentMode: (global.APP && global.APP.currentMode) || "select",
                 isPixelated: !!(global.APP && global.APP.isPixelated),
                 sourcePdfBuffers: null,
-                dirty: false
+                dirty: false,
+                spare: true
             };
             docs.set(id, doc);
             activeId = id;
             if (global.APP && global.APP.DOM) global.APP.DOM.viewer = legacy;
         } else if (docs.size === 0) {
-            createDocument({ title: "Untitled", activate: true });
+            createDocument({ title: "Untitled", activate: true, spare: true });
         }
 
         // Apply default zoom for empty docs
@@ -939,16 +1279,65 @@
         applyConfigToChrome();
         initLaunchQueue();
 
-        // Session restore (tabbed + enabled only).
-        // File System Access may require a user gesture for requestPermission —
-        // we try quietly first; if handles exist but none restored, show a bar.
-        if (tabbed() && sessionOn()) {
+        // Freeze last session BEFORE any open can rewrite IDB. Blob keys stay valid.
+        let priorSession = null;
+        if (tabbed() && sessionOn() && global.GaIdb) {
             try {
-                const ok = await restoreSession();
-                if (!ok) await maybeOfferSessionRestore();
-            } catch (e) {
-                console.warn("[workspace] restoreSession", e);
-                try { await maybeOfferSessionRestore(); } catch (_) { /* ignore */ }
+                priorSession = cloneSessionPayload(await readSessionPayloadFromIdb());
+            } catch (_) {
+                priorSession = null;
+            }
+            if (countRestorableTabs(priorSession) > 0) {
+                pendingRestorePayload = priorSession;
+                sessionPersistHold = true;
+            }
+        }
+
+        // Brief window for shell/launchQueue "open these files" before auto-restore.
+        // Race those and you get blank tabs with the wrong names. Party foul.
+        global.__GA_WORKSPACE_ACCEPTING_STARTUP_OPENS__ = true;
+        global.dispatchEvent(new CustomEvent("ga-workspace-accepting-opens"));
+
+        await waitForStartupOpens(350);
+        await opChain.catch(() => {});
+
+        global.__GA_WORKSPACE_ACCEPTING_STARTUP_OPENS__ = false;
+        const openedAtStartup = startupOpenCount > 0;
+        const priorN = countRestorableTabs(priorSession);
+
+        // Opened via OS? Offer restore bar — don't silently dump last week's tabs under them.
+        if (tabbed() && sessionOn()) {
+            if (openedAtStartup) {
+                if (priorN > 0) {
+                    try {
+                        await maybeOfferSessionRestore(priorSession);
+                    } catch (e) {
+                        console.warn("[workspace] maybeOfferSessionRestore", e);
+                        releaseSessionPersistHold();
+                    }
+                } else {
+                    sessionPersistHold = false;
+                    pendingRestorePayload = null;
+                    schedulePersist();
+                }
+            } else {
+                try {
+                    const ok = priorN > 0
+                        ? await restoreSession({ payload: priorSession })
+                        : false;
+                    sessionPersistHold = false;
+                    pendingRestorePayload = null;
+                    if (ok) {
+                        schedulePersist();
+                    } else if (priorN > 0) {
+                        await maybeOfferSessionRestore(priorSession);
+                    }
+                } catch (e) {
+                    console.warn("[workspace] restoreSession", e);
+                    try {
+                        await maybeOfferSessionRestore(priorSession);
+                    } catch (_) { /* ignore */ }
+                }
             }
         }
 
@@ -983,8 +1372,13 @@
             global.historyEngine.__gaWorkspacePatched = true;
         }
 
+        global.__GA_WORKSPACE_READY__ = true;
         global.dispatchEvent(new CustomEvent("ga-workspace-ready"));
-        console.log("[workspace] ready — tabbed:", tabbed(), "version:", cfg("version", "?"));
+        console.log(
+            "[workspace] ready — tabbed:", tabbed(),
+            "version:", cfg("version", "?"),
+            "startupOpens:", startupOpenCount
+        );
     }
 
     global.GaWorkspace = {
@@ -997,6 +1391,7 @@
         closeActiveDocument,
         closeAllDocuments,
         setActiveTitle,
+        setDocTitle,
         setActiveFileHandle,
         openFilesAsTabs,
         restoreSession,
@@ -1008,6 +1403,7 @@
         displayVersion,
         applyConfigToChrome,
         stashActive,
+        noteStartupOpen,
         getActiveId: () => activeId,
         getDocs: () => docs,
         activeDoc,

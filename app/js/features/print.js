@@ -3,6 +3,13 @@
 // ==========================================
 
 window.printBtn = async function() {
+    // Still rendering pages? Don't print a half-baked sandwich.
+    if (window.isAppBusy && window.isAppBusy()) {
+        return window.customAlert(
+            "Please wait for the document to finish loading before printing.",
+            "⏳ Still working"
+        );
+    }
     const pages = APP.DOM.viewer.querySelectorAll(".pageContainer");
     if (pages.length === 0) { window.customAlert("No pages loaded."); return; }
 

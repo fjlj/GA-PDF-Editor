@@ -6,7 +6,7 @@ const previewPopover = document.createElement("div");
 previewPopover.className = "thumb-preview-popover";
 document.body.appendChild(previewPopover);
 
-// --- THUMBNAIL LAZY-LOADING ENGINE ---
+// === Thumbnail lazy-load ===
 // This observer watches for thumbnails entering the viewport (plus a 100% buffer above/below)
 const thumbObserver = new IntersectionObserver((entries, observer) => {
     entries.forEach(entry => {
@@ -65,7 +65,7 @@ window.syncPageThumbnails = function() {
             thumbObserver.observe(thumbCanvas);
         }
         
-        // --- The Persistent Naming Engine ---
+        // === Page naming ===
         let displayName = wrapper.dataset.pageName;
         let hoverTitle = wrapper.dataset.hoverTitle;
 
@@ -115,7 +115,7 @@ window.syncPageThumbnails = function() {
             sel.addRange(range);
         });
 
-        // 3. Save the name when they click away
+        // Save the name when they click away
         label.addEventListener("blur", () => {
             label.contentEditable = "false";
             thumbItem.draggable = true; 
@@ -155,7 +155,7 @@ window.syncPageThumbnails = function() {
             }
         });
 
-        // 4. Save the name if they press Enter
+        // Save the name if they press Enter
         label.addEventListener("keydown", (e) => {
             if (e.key === "Enter") {
                 e.preventDefault();
@@ -163,7 +163,7 @@ window.syncPageThumbnails = function() {
             }
         });
         
-        // 5. Shield mousedowns from accidentally triggering the thumbnail drag logic
+        // Shield mousedowns from accidentally triggering the thumbnail drag logic
         label.addEventListener("mousedown", e => {
             if (label.contentEditable === "true") e.stopPropagation(); 
         });
@@ -237,7 +237,7 @@ window.syncPageThumbnails = function() {
         thumbItem.addEventListener("mouseleave", hidePreview);
         thumbItem.addEventListener("mousedown", hidePreview); 
         
-        // --- Existing Drag & Drop Logic ---
+        // === Drag & drop ===
         thumbItem.addEventListener("dragstart", e => {
 			e.stopPropagation();
             e.dataTransfer.setData("text/plain", index);

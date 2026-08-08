@@ -25,7 +25,7 @@ window.calculateSnapping = function(el, parent, newLeft, newTop) {
     return res;
 };
 
-// --- The Master Drag Engine ---
+// === Drag engine ===
 window.makeDraggable = function(el, resizeHandle = null, dragHandle = null) {
     el.addEventListener("mousedown", e => {
         if (APP.isXRayMode) return;
@@ -147,16 +147,16 @@ window.makeDraggable = function(el, resizeHandle = null, dragHandle = null) {
 		if (e.target.classList.contains("rotateHandle")) {
             rotating = true;
             
-            // 1. Save the current rotation
+            // Save the current rotation
             const currentTransform = targetEl.style.transform || "";
             const match = currentTransform.match(/rotate\(([\d.-]+)deg\)/);
             startRotation = match ? parseFloat(match[1]) : 0;
             
-            // 2. Temporarily un-rotate the element to get its pure physical boundaries
+            // Temporarily un-rotate the element to get its pure physical boundaries
             targetEl.style.transform = "none";
             const rawRect = targetEl.getBoundingClientRect();
             
-            // 3. Read exactly where the CSS transform-origin is set for this specific shape
+            // Read exactly where the CSS transform-origin is set for this specific shape
             const computedStyle = window.getComputedStyle(targetEl);
             let originX = rawRect.width / 2;
             let originY = rawRect.height / 2;
@@ -172,12 +172,12 @@ window.makeDraggable = function(el, resizeHandle = null, dragHandle = null) {
                 if (!isNaN(pxY)) originY = pxY;
             }
             
-            // 4. Because transform-origin is the ONE point that NEVER moves during rotation, 
+            // Because transform-origin is the ONE point that NEVER moves during rotation,
             // we now have our absolute mathematical pivot point!
             startCenterX = rawRect.left + originX;
             startCenterY = rawRect.top + originY;
             
-            // 5. Put the rotation back instantly (the user won't even see a flicker)
+            // Put the rotation back instantly
             targetEl.style.transform = currentTransform;
             
             // Calculate the initial angle of the mouse relative to this perfect center
@@ -326,11 +326,11 @@ window.makeDraggable = function(el, resizeHandle = null, dragHandle = null) {
                     }
                     
 		    // Clamp single item to page
-                    // 1. Hard lock the Top and Left edges at exactly 0
+                    // Hard lock the Top and Left edges at exactly 0
                     newLeft = Math.max(0, newLeft);
                     newTop = Math.max(0, newTop);
                     
-                    // 2. Shrink the bounding box to 10px so the handle can slide completely flush 
+                    // Shrink the bounding box to 10px so the handle can slide completely flush
                     // against the right and bottom edges of the canvas without falling off!
                     const maxLeft = parent.offsetWidth - 5;
                     const maxTop = parent.offsetHeight - 5;

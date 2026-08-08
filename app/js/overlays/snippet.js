@@ -26,7 +26,7 @@ window.extractCanvasSnippet = function(container, rectX, rectY, rectW, rectH, bg
     
     const base64Data = tempCanvas.toDataURL("image/png");
 
-    // --- 1. THE WHITEOUT PATCH (Only if NOT copying) ---
+    // === Whiteout Patch ===
     let whiteout = null;
     if (!isCopyMode) {
         whiteout = document.createElement("div");
@@ -52,7 +52,7 @@ window.extractCanvasSnippet = function(container, rectX, rectY, rectW, rectH, bg
         if (window.makeDraggable) window.makeDraggable(whiteout, woResize, woDrag);
     }
 
-    // --- 2. THE DRAGGABLE SNIPPET ---
+    // === Draggable Snippet ===
     const snippet = document.createElement("div");
     snippet.className = "overlayImg"; 
     snippet.style.left = rectX + "px"; 
@@ -87,7 +87,7 @@ window.extractCanvasSnippet = function(container, rectX, rectY, rectW, rectH, bg
         setTimeout(() => window.setActiveOverlay(snippet), 10);
     }
 
-    // --- 3. Instruction tape (macro commit) ---
+    // === Instruction tape ===
     if (window.GaProcessor) {
         const steps = [window.GaProcessor.build.createNode(snippet, "Snippet")];
         if (whiteout) {

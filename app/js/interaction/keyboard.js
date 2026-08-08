@@ -15,7 +15,7 @@ window.addEventListener("keydown", e => {
     const isTyping = activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA" || activeEl.isContentEditable;
     const key = e.key.toLowerCase();
 
-    // 1. ESCAPE KEY: Only handles modal closing and state clearing
+    // ESCAPE KEY: Only handles modal closing and state clearing
     if (e.key === "Escape") {
         let closedAModal = false;
         for (const m of APP.DOM.modals) {
@@ -30,13 +30,13 @@ window.addEventListener("keydown", e => {
             return; 
         }
         
-        // --- General cleanup if no modal was open ---
+        // === General cleanup if no modal was open ===
         
-        // 1. Clear our new modular selections
+        // Clear our new modular selections
         if (window.clearMultiSelection) window.clearMultiSelection();
         if (window.clearActiveOverlay) window.clearActiveOverlay(); 
         
-        // 2. Your existing cleanup
+        // Your existing cleanup
         window.hideGuides(); 
         if (window.disableXRayMode) window.disableXRayMode();
         
@@ -47,7 +47,7 @@ window.addEventListener("keydown", e => {
         APP.currentMode = "select"; 
         if (APP.DOM.viewer) APP.DOM.viewer.style.cursor = "default";
         
-        // 3. Defocus text
+        // Defocus text
         if (typeof isTyping !== 'undefined' && isTyping && activeEl) {
             activeEl.blur();
         } else if (document.activeElement && document.activeElement.isContentEditable) {
@@ -57,7 +57,7 @@ window.addEventListener("keydown", e => {
         return;
     }
 
-    // 2. ZOOM CONTROLS: Now outside the escape dungeon!
+    // ZOOM CONTROLS: Now outside the escape dungeon!
     if (!isTyping) {
         if (key === "=" || key === "+") { 
             e.preventDefault(); window.setZoom(window.currentZoom + APP.ZOOM_STEP); return; 
@@ -67,7 +67,7 @@ window.addEventListener("keydown", e => {
         }
     }
 
-    // 3. TOOL MODES
+    // TOOL Modes
     if (!isTyping && !e.ctrlKey && !e.metaKey && !e.altKey) {
         let newMode = null;
         if (key === "v") newMode = "select";
@@ -133,7 +133,7 @@ window.addEventListener("keydown", e => {
         }
     }
     
-    // 4. UNDO / REDO
+    // UNDO / REDO
     if (!isTyping) {
         if ((e.ctrlKey || e.metaKey) && key === "z") { 
             e.preventDefault(); 
@@ -156,7 +156,7 @@ window.addEventListener("keydown", e => {
         e.preventDefault(); // Stop the browser's default "Save Webpage" dialog
         window.exportProject();
     }
-    // 6. OBJECT MANIPULATION (Delete / Layering)
+    // Object Manipulation
     if (isTyping || (!APP.activeOverlay && APP.multiSelectedItems.size === 0)) return;
     
     if (e.key === "Delete" || e.key === "Backspace") {
@@ -214,14 +214,14 @@ window.addEventListener("keydown", e => {
     if (e.key === "]" || e.key === "[") {
         e.preventDefault(); 
         
-        // 1. Establish context (Find the page we are working on)
+        // Establish context
         const referenceEl = APP.multiSelectedItems.size > 0 ? Array.from(APP.multiSelectedItems)[0] : APP.activeOverlay;
         if (!referenceEl) return;
         
         const container = referenceEl.closest(".pageContainer");
         if (!container) return;
 
-        // 2. Find the highest Z-index of ALL UNSELECTED items on this specific page
+        // Find the highest Z-index of ALL UNSELECTED items on this specific page
         let highestOtherZ = 9; // Base below default 10
         container.querySelectorAll('.overlayImg, .textOverlay, .shapeOverlay, .formFieldOverlay').forEach(el => {
             const isForm = el.classList.contains("formFieldOverlay");
@@ -233,7 +233,7 @@ window.addEventListener("keydown", e => {
             }
         });
 
-        // 3. Group Z-Index Support
+        // Group Z-Index Support
         if (APP.multiSelectedItems.size > 0) {
             const items = Array.from(APP.multiSelectedItems);
             const beforeZ = items.map(el => el.style.zIndex || "10");
@@ -268,7 +268,7 @@ window.addEventListener("keydown", e => {
             return;
         }
 
-        // 4. Single Item Z-Index
+        // Single Item Z-Index
         const target = APP.activeOverlay; 
         if (target) {
             const beforeZ = target.style.zIndex || "10"; 
@@ -364,11 +364,11 @@ window.addEventListener("keydown", e => {
     }
 });
 
-// ---------------------------------------------------------------------------
+// ========================================
 // Nudge history coalescing
 // keydown → cancel pending timer + apply move + capture "before" once
 // keyup   → start short timeout; if it fires (no more arrows), COMMIT_TRANSFORM
-// ---------------------------------------------------------------------------
+// ========================================
 (function initNudgeHistoryCoalesce() {
     const COMMIT_MS = 320;
     /** @type {Map<string, { el: Element, before: object }>|null} */

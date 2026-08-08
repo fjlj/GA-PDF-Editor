@@ -18,7 +18,20 @@ window.sortTextLayerDOM = function(layer) {
     spanData.forEach(data => layer.appendChild(data.el));
 };
 
-window.renderPage = async function(pdf, pageNum) {
+/**
+ * @param {*} pdf
+ * @param {number} pageNum
+ * @param {HTMLElement} [targetViewer] pin destination pane (multi-tab safe)
+ */
+window.renderPage = async function(pdf, pageNum, targetViewer) {
+    const viewer = targetViewer
+        || (APP.DOM && APP.DOM.viewer)
+        || document.getElementById("viewer");
+    if (!viewer) {
+        console.error("[renderPage] no viewer pane");
+        return null;
+    }
+
     const page = await pdf.getPage(pageNum);
     const viewport2x = page.getViewport({ scale: 2 });
     const viewport1x = page.getViewport({ scale: 1 }); 
@@ -62,13 +75,13 @@ window.renderPage = async function(pdf, pageNum) {
 	wrapper.dataset.originalPageNum = pageNum;
     wrapper.dataset.pageId = `${pdf.fingerprints[0]}_page_${pageNum}`;
     wrapper.dataset.baseWidth = baseWidth; wrapper.dataset.baseHeight = baseHeight;
-    if (window.GaProcessor && APP.DOM && APP.DOM.viewer) {
-        window.GaProcessor.ensureId(APP.DOM.viewer, "viewer");
+    if (window.GaProcessor) {
+        window.GaProcessor.ensureId(viewer, "viewer");
     }
     wrapper.style.width = (baseWidth * window.currentZoom) + "px";
     wrapper.style.height = (baseHeight * window.currentZoom) + "px";
     wrapper.appendChild(container);
-    APP.DOM.viewer.appendChild(wrapper);
+    viewer.appendChild(wrapper);
 
     // Native PDF.js Rendering
     try {
@@ -106,8 +119,12 @@ window.renderPage = async function(pdf, pageNum) {
         console.warn("Annotation layer failed:", e);
     }
 
-    wrapper.appendChild(container);
-    APP.DOM.viewer.appendChild(wrapper);
+    if (wrapper.parentNode !== viewer) {
+        viewer.appendChild(wrapper);
+    }
+    if (container.parentNode !== wrapper) {
+        wrapper.appendChild(container);
+    }
 
     // return page wrapper
     return wrapper;
@@ -125,16 +142,37 @@ window.gcSourcePdfBuffers = function() {
     });
 };
 
-window.renderPDF = async function(arrayBuffer, append = false) {
+/**
+ * Load a PDF into a viewer pane.
+ * @param {ArrayBuffer} arrayBuffer
+ * @param {boolean} [append=false]
+ * @param {{ viewer?: HTMLElement }} [opts] pin destination pane so tab switches
+ *   mid-load cannot dump pages into the wrong document (session restore race).
+ */
+window.renderPDF = async function(arrayBuffer, append = false, opts) {
+    const options = (opts && typeof opts === "object") ? opts : {};
+    // Pin the pane once. After awaits, APP.DOM.viewer is a liar (restore races).
+    const targetViewer = options.viewer
+        || (APP.DOM && APP.DOM.viewer)
+        || document.getElementById("viewer");
+    if (!targetViewer) {
+        console.error("[renderPDF] no viewer pane");
+        return [];
+    }
+    const isActiveViewer = !!(APP.DOM && APP.DOM.viewer === targetViewer);
+
     if (!append) {
-        APP.DOM.viewer.innerHTML = "";
-        window.historyEngine.undoStack = [];
-        window.historyEngine.redoStack = [];
-        window.historyEngine.savePoint = 0; 
-        window.updateHistoryUI();
+        targetViewer.innerHTML = "";
+        // Nuke undo only for the active tab — not every secret pane in the dungeon
+        if (isActiveViewer && window.historyEngine) {
+            window.historyEngine.undoStack = [];
+            window.historyEngine.redoStack = [];
+            window.historyEngine.savePoint = 0;
+            if (typeof window.updateHistoryUI === "function") window.updateHistoryUI();
+        }
         // Do NOT wipe sourcePdfBuffers globally — other tabs still need their bytes.
         // Orphaned entries are removed after pages are (re)built.
-        if (typeof window.clearProjectAudit === "function") {
+        if (isActiveViewer && typeof window.clearProjectAudit === "function") {
             window.clearProjectAudit();
         }
     }
@@ -285,26 +323,73 @@ window.renderPDF = async function(arrayBuffer, append = false) {
             // Drop stale password for this fingerprint if reopened without encryption
             try { delete window._gaPdfPasswordByFingerprint[fpKey]; } catch (_) { /* ignore */ }
         }
-        
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const wrapper = await window.renderPage(pdf, i);
-            newWrappers.push(wrapper);
+
+        // Big multi-page PDF: let pages roll in (no full-screen dim — that's rude).
+        // Soft gate = save/print blocked; toast shows progress. Multi-file dim is someone else's job.
+        const totalPages = pdf.numPages || 0;
+        const useSoftGate = totalPages >= 2
+            && typeof window.beginDocGate === "function"
+            && typeof window.endDocGate === "function";
+        // Already full-dimmed? Just rewrite the spinner text, don't double-gate.
+        const outerDim = window.isAppBusy && window.isAppBusy()
+            && window._gaOverlayBusy;
+        let ownsGate = false;
+
+        if (useSoftGate && !outerDim) {
+            window.beginDocGate("renderPDF");
+            ownsGate = true;
+        }
+
+        try {
+            for (let i = 1; i <= totalPages; i++) {
+                if (totalPages >= 2) {
+                    const verb = append ? "Appending" : "Loading";
+                    const msg = `${verb} page ${i} of ${totalPages}…`;
+                    if (outerDim && typeof window.showLoading === "function") {
+                        window.showLoading(msg);
+                    } else if (typeof window.setDocLoadStatus === "function") {
+                        window.setDocLoadStatus(msg + "  ·  Save/print wait until done");
+                    }
+                }
+                const wrapper = await window.renderPage(pdf, i, targetViewer);
+                if (wrapper) newWrappers.push(wrapper);
+            }
+        } finally {
+            // Gate MUST drop here. A stuck isAppBusy is how you get angry support tickets.
+            if (ownsGate) {
+                try { window.endDocGate(); } catch (_) { /* ignore */ }
+            }
+            if (!outerDim && typeof window.setDocLoadStatus === "function") {
+                if (!ownsGate) window.setDocLoadStatus(null);
+            }
         }
         
-        window.syncPageThumbnails();
+        // Thumbnails: only the tab you're staring at
+        if (isActiveViewer && typeof window.syncPageThumbnails === "function") {
+            window.syncPageThumbnails();
+        }
         if (typeof window.gcSourcePdfBuffers === "function") window.gcSourcePdfBuffers();
 
         // Session: cache full input (incl. .gapdf trailer) so hard refresh reloads form schema
         if (!append && window.GaWorkspace && typeof window.GaWorkspace.rememberDocBytes === "function") {
             try {
-                window.GaWorkspace.rememberDocBytes(sessionCacheBytes || safeCleanBytes);
+                let docForBytes = null;
+                if (typeof window.GaWorkspace.getDocs === "function") {
+                    const map = window.GaWorkspace.getDocs();
+                    if (map && typeof map.forEach === "function") {
+                        map.forEach((d) => {
+                            if (d && d.viewer === targetViewer) docForBytes = d;
+                        });
+                    }
+                }
+                window.GaWorkspace.rememberDocBytes(sessionCacheBytes || safeCleanBytes, docForBytes || undefined);
             } catch (e) {
                 console.warn("rememberDocBytes", e);
             }
         }
 
-        // Capture the viewer that owns this render BEFORE any tab switch can race
-        const importRoot = (APP.DOM && APP.DOM.viewer) || null;
+        // Always use the pinned pane for project/form import (never re-read APP.DOM.viewer)
+        const importRoot = targetViewer;
 
         // Pages + annotation layers are already fully awaited above — apply immediately.
         // A fire-and-forget setTimeout(100) raced with tab switch / hard-refresh restore
@@ -322,10 +407,20 @@ window.renderPDF = async function(arrayBuffer, append = false) {
                         importRoot.dataset.formFieldsManaged = "1";
                     }
                 }
-                window.applyProjectData(schemaToLoad);
+                const prevViewer = APP.DOM && APP.DOM.viewer;
+                if (APP.DOM) APP.DOM.viewer = importRoot;
+                try {
+                    window.applyProjectData(schemaToLoad, importRoot);
+                } finally {
+                    if (APP.DOM && prevViewer && prevViewer.isConnected) {
+                        APP.DOM.viewer = prevViewer;
+                    } else if (APP.DOM) {
+                        APP.DOM.viewer = importRoot;
+                    }
+                }
                 const got = importRoot
                     ? importRoot.querySelectorAll(".formFieldOverlay").length
-                    : document.querySelectorAll(".formFieldOverlay").length;
+                    : 0;
                 console.log(
                     "[renderPDF] project applied; form shells=", got,
                     "expected=", importRoot && importRoot.dataset.expectedFormFields

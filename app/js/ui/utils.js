@@ -11,7 +11,7 @@ window.checkIntersection = function(rect1, rect2) {
     );
 };
 
-// --- Math & Coordinate Helpers ---
+// === Math & coordinates ===
 window.getRelativeCoords = function(e, container) {
     const rect = container.getBoundingClientRect();
     const zoom = window.currentZoom || 1;
@@ -53,7 +53,7 @@ window.rgbToHex = function(rgb) {
     return "#" + arr.slice(0, 3).map(x => parseInt(x).toString(16).padStart(2, '0')).join('');
 };
 
-// --- Viewport & Scrolling ---
+// === Viewport & scrolling ===
 /** Soft tool-dropdown palette (less eye-searing than Material orange) */
 window.TOOL_SELECT_COLORS = {
     select: { bg: "#0af", fg: "#fff" },
@@ -118,7 +118,7 @@ window.setZoom = function(newZoom) {
     }
 };
 
-// --- UI Builders (DRY Improvements) ---
+// === UI builders ===
 window.createUIInput = function(type, val, title, width) {
     const input = document.createElement("input");
     input.type = type; 
@@ -128,7 +128,7 @@ window.createUIInput = function(type, val, title, width) {
     return input;
 };
 
-// --- Selection Managers ---
+// === Selection ===
 window.clearMultiSelection = function() {
     APP.multiSelectedItems.forEach(el => el.classList.remove("multi-selected"));
     APP.multiSelectedItems.clear();
@@ -311,7 +311,7 @@ window.adjustToolbarPosition = function(overlay) {
         flippedY = true;
     }
     
-    // 3. Horizontal nudge if toolbar would hang off the page
+    // Horizontal nudge if toolbar would hang off the page
     // Because 'overlay' and 'page' scale together, their offsetWidth/offsetLeft 
     // represent the true logical pixels of your document, ignoring the zoom completely.
     // offsetLeft/offsetWidth are border-box (OD) coordinates.
@@ -356,23 +356,23 @@ window.sanitizeHTML = function(dirtyHTML) {
     const allowedTags = ['B', 'I', 'U', 'STRONG', 'EM', 'BR', 'SPAN', 'DIV','FONT']; 
     
     function cleanNode(node) {
-        // 1. Text nodes are always safe
+        // Text nodes are always safe
         if (node.nodeType === Node.TEXT_NODE) return;
         
-        // 2. Destroy anything that isn't a standard element (comments, etc.)
+        // Destroy anything that isn't a standard element
         if (node.nodeType !== Node.ELEMENT_NODE) {
             node.remove();
             return;
         }
         
-        // 3. Destroy unapproved tags completely (scripts, iframes, imgs, objects)
+        // Destroy unapproved tags completely
         if (!allowedTags.includes(node.tagName)) {
 			console.log("3_Removed: "+node.tagName);
             node.remove();
             return;
         }
         
-        // 4. Scrub ALL attributes EXCEPT 'style'
+        // Scrub ALL attributes EXCEPT 'style'
         const attributes = Array.from(node.attributes);
         attributes.forEach(attr => {
             if (attr.name !== 'style' && attr.name !== 'color') {
@@ -387,7 +387,7 @@ window.sanitizeHTML = function(dirtyHTML) {
             }
         });
         
-        // 5. Recurse down the tree
+        // Recurse down the tree
         const children = Array.from(node.childNodes);
         children.forEach(cleanNode);
     }

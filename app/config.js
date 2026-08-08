@@ -10,9 +10,9 @@
     /** @type {Readonly<Record<string, unknown>>} */
     const GA_CONFIG = Object.freeze({
         /** Bump this when shipping script/CSS changes so clients re-fetch. */
-        version: "1.5.4-chrome-od",
+        version: "1.5.11-tab-close-focus",
 
-        // --- Feature flags ---
+        // === Feature flags ===
         /** Multi-document tab bar (VS Code / Acrobat style). Off = classic single canvas. */
         enableTabbedMode: true,
         /** Editor ↔ Form workspace switcher and form-field tools. */
@@ -36,7 +36,7 @@
         /** Consume launchQueue / file_handlers for OS "Open with" into this window. */
         enableLaunchQueue: true,
 
-        // --- Defaults ---
+        // === Defaults ===
         /** Initial zoom when a new document tab is created (1.0 = 100%). */
         defaultZoom: 1.25,
         minZoom: 0.5,

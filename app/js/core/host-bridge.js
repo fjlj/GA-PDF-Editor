@@ -1,13 +1,10 @@
 // ==========================================
-// host-bridge.js: Desktop shell integration
-// WebView2 (Windows) + future hosts. PWA uses launchQueue in io.js.
+// host-bridge.js — talking to the desktop shell
+// WebView2 (and friends). Browser PWA uses launchQueue instead.
 // ==========================================
 
-/**
- * Open files delivered by a native shell.
- * entries: [{ name: "doc.pdf", url: "https://ga-open.local/...." }]
- * Host maps a temp folder so large files avoid base64 postMessage limits.
- */
+// Shell hands us { name, url } pointing at a mapped temp folder
+// (keeps giant PDFs off the postMessage highway — base64 is not a personality).
 window.openFromHostUrls = async function (entries) {
     if (!Array.isArray(entries) || entries.length === 0) return;
 
@@ -33,7 +30,12 @@ window.openFromHostUrls = async function (entries) {
 
     if (files.length === 0) return;
 
-    // Prefer multi-tab open when enabled (each host file → its own tab)
+    // "Hey workspace, user *meant* to open these — don't silently resurrect the old session under them"
+    if (window.GaWorkspace && typeof window.GaWorkspace.noteStartupOpen === "function") {
+        window.GaWorkspace.noteStartupOpen(files.length);
+    }
+
+    // Tabs on → one file, one tab. Tabs off → classic pile-into-active.
     if (window.GaWorkspace && window.GaWorkspace.tabbed && window.GaWorkspace.tabbed()
         && typeof window.GaWorkspace.openFilesAsTabs === "function") {
         await window.GaWorkspace.openFilesAsTabs(files.map((f) => ({ file: f, handle: null })));
@@ -47,7 +49,7 @@ window.openFromHostUrls = async function (entries) {
 window.__GA_SHELL__ = null;
 
 (function initHostBridge() {
-    // Microsoft Edge WebView2 injects chrome.webview
+    // WebView2 leaves chrome.webview under the pillow for us
     const wv = window.chrome && window.chrome.webview;
     if (!wv) return;
 
@@ -66,7 +68,8 @@ window.__GA_SHELL__ = null;
         }
     });
 
-    // Tell the shell the page can accept files (after our listeners are ready)
+    // Don't yell "ready" until the workspace is awake enough to catch open-files.
+    // Early ready = restore race = blank tabs with wrong names. We learned that the hard way.
     const signalReady = () => {
         try {
             wv.postMessage({ type: "ready" });
@@ -75,10 +78,18 @@ window.__GA_SHELL__ = null;
         }
     };
 
-    if (document.readyState === "complete") {
-        // Defer so processPdfFiles / renderPDF scripts are defined (defer order)
-        setTimeout(signalReady, 0);
-    } else {
-        window.addEventListener("load", () => setTimeout(signalReady, 0));
-    }
+    const whenAcceptingOpens = (cb) => {
+        if (window.__GA_WORKSPACE_ACCEPTING_STARTUP_OPENS__
+            || window.__GA_WORKSPACE_READY__) {
+            cb();
+            return;
+        }
+        const onAccept = () => cb();
+        window.addEventListener("ga-workspace-accepting-opens", onAccept, { once: true });
+        window.addEventListener("ga-workspace-ready", onAccept, { once: true });
+    };
+
+    whenAcceptingOpens(() => {
+        setTimeout(signalReady, 0); // one tick so other listeners finish their coffee
+    });
 })();

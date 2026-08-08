@@ -2,9 +2,9 @@
 
 | Field | Value |
 |-------|--------|
-| **Version** | **1.5.4** |
+| **Version** | **1.5.11** |
 | **Owner** | Give Academy LLC / GA Information Technology |
-| **Last updated** | 2026-08-03 |
+| **Last updated** | 2026-08-07 |
 | **Downloads / releases** | **[give.academy/GA-PDF-Editor](https://give.academy/GA-PDF-Editor/)** |
 
 Internal **offline-first** PDF viewer and editor. Open PDFs or **`.gapdf`** projects, annotate, fill and design fillable AcroForm fields, run **local OCR**, and save either an editable project or a final PDF (annotations flattened; form fields remain fillable; optional password on export). Document bytes stay on the device — the app does **not** upload content to a server.
@@ -19,7 +19,7 @@ This GitHub tree is **slim source only** (app JS/CSS/HTML, packager, docs, SVC C
 
 **Stack:** Static HTML / CSS / vanilla JavaScript, PDF.js, pdf-lib, QPDF (WASM), html2canvas, Tesseract.js (fetched into `app/lib/` by setup). Optional localhost SVC shell for a clean origin (PWA-friendly).
 
-See also: **[VERSION](VERSION)** for semver notes.
+See also: **[VERSION](VERSION)** for semver notes · **[dev/CHANGELOG-1.5.5.md](dev/CHANGELOG-1.5.5.md)** for this patch.
 
 ---
 

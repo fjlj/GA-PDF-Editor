@@ -33,51 +33,95 @@ window.addEventListener("dragleave", e => {
     if (dragCounter === 0) dragOverlay.style.display = "none";
 });
 
+function isPdfLikeFile(file) {
+    if (!file) return false;
+    const lower = String(file.name || "").toLowerCase();
+    return file.type === "application/pdf"
+        || lower.endsWith(".pdf")
+        || lower.endsWith(".gapdf");
+}
+
 window.addEventListener("drop", async e => {
     e.preventDefault(); dragCounter = 0; dragOverlay.style.display = "none";
 
-    // Prefer FileSystemFileHandle from the drop (session restore + better OS integration)
-    const items = e.dataTransfer && e.dataTransfer.items
-        ? Array.from(e.dataTransfer.items)
-        : [];
-    const handlePairs = [];
-    if (items.length && items[0].getAsFileSystemHandle) {
-        for (const item of items) {
-            if (item.kind !== "file") continue;
-            try {
-                const handle = await item.getAsFileSystemHandle();
-                if (handle && handle.kind === "file" && typeof handle.getFile === "function") {
-                    const file = await handle.getFile();
-                    const lower = (file.name || "").toLowerCase();
-                    if (file.type === "application/pdf" || lower.endsWith(".pdf") || lower.endsWith(".gapdf")) {
-                        handlePairs.push({ file, handle });
-                    }
-                }
-            } catch (_) { /* not supported / denied */ }
+    if (window.isAppBusy && window.isAppBusy()) {
+        if (typeof window.customAlert === "function") {
+            window.customAlert(
+                "Please wait for the current PDFs to finish loading.",
+                "⏳ Still loading"
+            );
         }
-    }
-
-    if (handlePairs.length > 0) {
-        // Sidebar drop → force append path; otherwise always ask Append vs New tab(s)
-        const isSidebarDrop = !!e.target.closest("#historySidebar");
-        await window.processPdfFiles(handlePairs.map((p) => p.file), isSidebarDrop, {
-            handles: handlePairs.map((p) => p.handle)
-        });
         return;
     }
 
-    const files = Array.from(e.dataTransfer.files);
-    const imageFiles = files.filter(f => f.type.startsWith("image/"));
-    const pdfFiles = files.filter(f => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".gapdf"));
+    const isSidebarDrop = !!e.target.closest("#historySidebar");
 
-    // Process PDFs via our new unified engine!
+    // Grab FileList NOW — it's a static snapshot. Don't trust live lists after awaits.
+    const filesFromList = Array.from((e.dataTransfer && e.dataTransfer.files) || []);
+
+    // FileSystemFileHandle = nice for session restore.
+    // Chromium quirk: await getAsFileSystemHandle() inside a for-loop and friends
+    // evaporate after the first await. Kick off ALL the promises sync, then Promise.all.
+    // (Yes, we shipped "drop 3, open 1" for a minute. Embarrassing. Fixed.)
+    const items = e.dataTransfer && e.dataTransfer.items
+        ? Array.from(e.dataTransfer.items)
+        : [];
+    const handlePromises = [];
+    if (items.length && typeof items[0].getAsFileSystemHandle === "function") {
+        for (const item of items) {
+            if (!item || item.kind !== "file") continue;
+            try {
+                handlePromises.push(item.getAsFileSystemHandle());
+            } catch (_) {
+                handlePromises.push(Promise.resolve(null));
+            }
+        }
+    }
+
+    let handlePairs = [];
+    if (handlePromises.length > 0) {
+        const handles = await Promise.all(
+            handlePromises.map((p) => p.catch(() => null))
+        );
+        for (const handle of handles) {
+            if (!handle || handle.kind !== "file" || typeof handle.getFile !== "function") continue;
+            try {
+                const file = await handle.getFile();
+                if (isPdfLikeFile(file)) {
+                    handlePairs.push({ file, handle });
+                }
+            } catch (_) { /* denied / not a file — shrug */ }
+        }
+    }
+
+    // Whichever path kept more PDFs wins. FileList is the boring, reliable friend.
+    const pdfFromList = filesFromList.filter(isPdfLikeFile);
+    let pdfFiles = [];
+    let handles = [];
+
+    if (handlePairs.length >= pdfFromList.length && handlePairs.length > 0) {
+        pdfFiles = handlePairs.map((p) => p.file);
+        handles = handlePairs.map((p) => p.handle);
+    } else if (pdfFromList.length > 0) {
+        pdfFiles = pdfFromList;
+        if (handlePairs.length > 0) {
+            handles = pdfFromList.map((f) => {
+                const hit = handlePairs.find((p) => p.file && p.file.name === f.name);
+                return hit ? hit.handle : null;
+            });
+        }
+    } else if (handlePairs.length > 0) {
+        pdfFiles = handlePairs.map((p) => p.file);
+        handles = handlePairs.map((p) => p.handle);
+    }
+
     if (pdfFiles.length > 0) {
-        const isSidebarDrop = !!e.target.closest("#historySidebar");
-        await window.processPdfFiles(pdfFiles, isSidebarDrop);
+        await window.processPdfFiles(pdfFiles, isSidebarDrop, { handles });
         return;
     }
 
     // Process Images
+    const imageFiles = filesFromList.filter((f) => f.type && f.type.startsWith("image/"));
     if (imageFiles.length > 0) {
         const targetContainer = e.target.closest(".pageContainer");
         if (!targetContainer) return window.customAlert("Please drop images directly onto a specific PDF page.");
@@ -94,7 +138,7 @@ if (window.__TAURI__) {
     const dragOverlay = document.getElementById("dragOverlay");
     const dragOverlayText = document.getElementById("dragOverlayText");
 
-    // 1. Mouse enters the window with a file
+    // Mouse enters the window with a file
     listen('tauri://drag-enter', (e) => {
         dragOverlay.style.display = "flex";
         
@@ -114,12 +158,12 @@ if (window.__TAURI__) {
         }
     });
 
-    // 2. Mouse leaves the window without dropping
+    // Mouse leaves the window without dropping
     listen('tauri://drag-leave', (e) => {
         dragOverlay.style.display = "none";
     });
 
-    // 3. User drops the file!
+    // User drops the file!
     const handleTauriDrop = async (event) => {
         dragOverlay.style.display = "none";
         

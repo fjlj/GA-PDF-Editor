@@ -1,6 +1,6 @@
   html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #222; overscroll-behavior: none; }
 
-/* --- Multi-document tab bar (enableTabbedMode) --- */
+/* === Multi-document tab bar === */
 .doc-tab-bar {
     position: fixed;
     top: 0;
@@ -162,7 +162,7 @@ body:not(.has-doc-tabs) #viewer {
     height: 100% !important;
 }
 
-/* --- Native PDF form widgets (PDF.js AnnotationLayer) --- */
+/* === Native PDF form widgets === */
 .pageContainer {
     position: relative;
 }
@@ -325,12 +325,12 @@ body.capture-safe .annotationLayer section {
     box-sizing: border-box; 
 }
 
-/* --- ACTIVE SELECTION INDICATORS --- */
+/* === Active selection === */
 .overlayImg.overlay-active, .textOverlay.overlay-active { z-index:99; outline: 2px dashed #0af; outline-offset: 0px; }
 .shapeOverlay.overlay-active { z-index:99; outline: 2px dashed #0af; outline-offset: 0px; }
 .formFieldOverlay.overlay-active { z-index:99; outline: 2px dashed #7c3aed; outline-offset: 0px; }
 
-/* --- WORKSPACE: EDITOR vs FORM --- */
+/* === Workspace: editor vs form === */
 /*
  * Editor: fill via designer .form-field-fill (including imported AcroForm twins).
  * Native AnnotationLayer widgets are hidden after import so they don't steal hits
@@ -641,7 +641,7 @@ input[type="radio"].form-field-fill-control {
     margin-right: 1px;
 }
 
-/* --- FILLABLE FORM FIELD DESIGNER --- */
+/* === Form field designer === */
 .formFieldOverlay {
     position: absolute;
     z-index: 12;
@@ -799,7 +799,7 @@ input[type="radio"].form-field-fill-control {
 }
 .overlay-active .resizeHandle { display: block; }
 
-/* --- TEXT & SHAPE OVERLAY STYLES --- */
+/* === Text & shape overlays === */
 .textOverlay, .shapeOverlay { position: absolute; z-index: 10; box-sizing: border-box; }
 .textOverlay { 
     font-family: Arial, sans-serif; 
@@ -858,7 +858,7 @@ input[type="radio"].form-field-fill-control {
 }
 .textOverlay.overlay-active .textDragHandle, .shapeOverlay.overlay-active .textDragHandle, .overlayImg.overlay-active .textDragHandle { display: flex; }
 
-/* --- HEADER BAR (Merged Glassmorphism + Pro Alignment) --- */
+/* === Header bar === */
 #headerBar {
     position: fixed; top: 0; left: 0; right: 0; height: 40px; 
     display: flex; align-items: center;
@@ -979,7 +979,7 @@ input[type="radio"].form-field-fill-control {
     filter: brightness(0.50); /* Darkens more when clicked */
 }
 
-/* --- YOUR SPECIFIC BUTTON COLORS & POSITIONS --- */
+/* === Button colors & positions === */
 #headerBar #openPdfBtn { 
     font-weight: bold; 
     background: #f8f9fa; 
@@ -1147,7 +1147,7 @@ input[type="radio"].form-field-fill-control {
     margin-left: auto; 
 }
 
-/* --- SIGNATURE MODAL --- */
+/* === Signature modal === */
 #sigModal {
     position: fixed; top: 60px; left: 20px; background: #fff; padding: 15px; border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 100000; width: 300px; display: flex; flex-direction: column; gap: 10px;
@@ -1220,7 +1220,7 @@ input[type="radio"].form-field-fill-control {
 .rt-btn.btn-u { text-decoration: underline; font-weight: bold; font-family: serif; width: 26px; }
 .rt-input-bare { width: 45px; padding: 0; border: none; outline: none; background: transparent; }
 
-/* --- NATIVE PRINT STYLES --- */
+/* === Native print styles === */
 @media print {
     /* print: hide everything except the print area */
     body > *:not(#printArea) { 
@@ -1300,7 +1300,7 @@ input[type="radio"].form-field-fill-control {
 }
 .overlay-active .deleteHandle { display: flex; }
 .deleteHandle:hover { background: #cc0000; }
-/* --- EDIT TEXT MODAL --- */
+/* === Edit text modal === */
 #editModal {
     display: none; 
     position: fixed; 
@@ -1323,7 +1323,7 @@ input[type="radio"].form-field-fill-control {
 #editModalHeader h3 { margin: 0; color: #333; }
 #closeEditModalBtn { background: none; border: none; font-size: 18px; cursor: pointer; }
 
-/* --- EDIT TEXT MODAL --- */
+/* === Edit text modal === */
 #editModalTextWrapper {
     width: 100%; 
     /* fixed height — do not let layout resize the bar */
@@ -1370,11 +1370,11 @@ input[type="radio"].form-field-fill-control {
 }
 #applyEditModalBtn:hover { background: #0099e6; }
 
-/* --- ALIGNMENT GUIDES --- */
+/* === Alignment guides === */
 .snap-guide { position: absolute; background: #0af; pointer-events: none; display: none; z-index: 9999; }
 #guide-vertical { top: 0; bottom: 0; width: 1px; }
 #guide-horizontal { left: 0; right: 0; height: 1px; }
-/* --- HISTORY SIDEBAR --- */
+/* === History sidebar === */
 #historySidebar {
 	border-left: 1px solid #cbd5e1;
     position: fixed;
@@ -1630,7 +1630,7 @@ kbd,
     .help-grid { grid-template-columns: 1fr; }
     .help-keys { max-width: 48%; }
 }
-/* --- TABBED SIDE PANEL UPGRADES --- */
+/* === Tabbed side panel === */
 .panel-tabs {
     display: flex; background: #f8f9fa; border-bottom: 1px solid #ddd;
 }
@@ -1644,7 +1644,7 @@ kbd,
 .panel-content { display: none; flex-direction: column; flex-grow: 1; overflow-y: auto; padding: 10px; }
 .panel-content.active { display: flex; }
 
-/* --- PAGE THUMBNAILS --- */
+/* === Page thumbnails === */
 #pageThumbList { display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; }
 
 .thumb-item {
@@ -1681,7 +1681,7 @@ kbd,
 }
 .thumb-item:hover .thumb-delete { opacity: 1; }
 .thumb-delete:hover { background: #cc0000; transform: scale(1.1); }
-/* --- DRAG & DROP UPGRADES --- */
+/* === Drag & drop === */
 #dragOverlay {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
     background: rgba(0, 170, 255, 0.15); border: 8px dashed #0af;
@@ -1754,7 +1754,7 @@ kbd,
 .drop-btn.primary:hover { background: #0069d9; }
 .drop-btn.danger { background: #dc3545; }
 .drop-btn.danger:hover { background: #c82333; }
-/* --- X-RAY MODE --- */
+/* === X-ray mode === */
 /* Let the mouse pass through inactive overlays, but keep the active one solid! */
 body.xray-mode .textOverlay:not(.overlay-active),
 body.xray-mode .shapeOverlay:not(.overlay-active),
@@ -1764,7 +1764,7 @@ body.xray-mode .formFieldOverlay:not(.overlay-active) {
     opacity: 0.4 !important;
     transition: opacity 0.1s;
 }
-/* --- X-Ray HUD Indicator --- */
+/* === X-ray HUD === */
 #xrayIndicator {
     position: fixed;
     bottom: 20px;
@@ -1904,7 +1904,7 @@ body.xray-mode #xrayIndicator {
 .stencil-drag-handle:active {
     cursor: grabbing;
 }
-/* --- FILE DROPDOWN MENU --- */
+/* === File dropdown menu === */
 .file-dropdown { position: relative; display: inline-block; }
 .file-dropdown-content {
     display: none; position: absolute; background-color: #fff;

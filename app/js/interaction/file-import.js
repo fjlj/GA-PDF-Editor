@@ -2,7 +2,7 @@
 // file-import.js: PDF LOADING & MODALS
 // ==========================================
 
-// --- Unified File Import Engine ---
+// === File import ===
 window.pendingImportFiles = [];
 /** Optional FileSystemFileHandle parallel to pendingImportFiles (same index). */
 window.pendingImportHandles = [];
@@ -37,45 +37,74 @@ function workspaceApi() {
 async function loadFilesIntoActiveTab(pdfFiles, handles) {
     if (!pdfFiles || !pdfFiles.length) return;
     const ws = workspaceApi();
+    const total = pdfFiles.length;
+    // Smashing several PDFs together is slow. Dim + block save so nobody exports half a sandwich.
+    const showBusy = total > 1 && typeof window.showLoading === "function";
 
-    window.currentPdfName = pdfFiles[0].name;
-    if (ws && ws.setActiveTitle) {
-        ws.setActiveTitle(pdfFiles[0].name, handles[0] || null);
-    } else if (ws && ws.setActiveFileHandle && handles[0]) {
-        ws.setActiveFileHandle(handles[0]);
-    }
-    await window.renderPDF(await pdfFiles[0].arrayBuffer(), false);
-    for (let i = 1; i < pdfFiles.length; i++) {
-        await window.renderPDF(await pdfFiles[i].arrayBuffer(), true);
-    }
-
-    if (window.pendingProjectData) {
-        const modal = document.getElementById("pendingProjectModal");
-        if (modal) modal.style.display = "none";
-        const schema = window.pendingProjectData;
-        window.pendingProjectData = null;
-        try {
-            const root = (window.APP && APP.DOM && APP.DOM.viewer) || document.getElementById("viewer");
-            if (root) {
-                root._gaProjectSchema = schema;
-                const expectedForms = (Array.isArray(schema.pages) ? schema.pages : [])
-                    .reduce((n, p) => n + ((p.overlays || []).filter((o) => o && o.type === "formField").length), 0);
-                if (expectedForms > 0) root.dataset.expectedFormFields = String(expectedForms);
-            }
-            window.applyProjectData(schema);
-            if (typeof window.scheduleSuppressNativesForDesignerTwins === "function") {
-                window.scheduleSuppressNativesForDesignerTwins(root || undefined);
-            }
-            if (typeof window.scheduleEnsureFormsReady === "function") {
-                window.scheduleEnsureFormsReady(root, { schema });
-            }
-        } catch (e) {
-            console.warn("[file-import] pending project apply failed", e);
+    try {
+        if (showBusy) {
+            window.showLoading(`Loading PDF 1 of ${total}…`);
         }
-    }
-    if (ws && ws.renderTabBar) {
-        ws.renderTabBar();
-        if (ws.persistSession) ws.persistSession().catch(() => {});
+
+        // Pin THIS tab's viewer. Tab switch mid-render used to teleport pages. Spooky.
+        const targetDoc = ws && typeof ws.activeDoc === "function" ? ws.activeDoc() : null;
+        const targetViewer = (targetDoc && targetDoc.viewer)
+            || (APP.DOM && APP.DOM.viewer)
+            || document.getElementById("viewer");
+
+        window.currentPdfName = pdfFiles[0].name;
+        if (ws && ws.setDocTitle && targetDoc) {
+            ws.setDocTitle(targetDoc, pdfFiles[0].name, handles[0] || null);
+        } else if (ws && ws.setActiveTitle) {
+            ws.setActiveTitle(pdfFiles[0].name, handles[0] || null);
+        } else if (ws && ws.setActiveFileHandle && handles[0]) {
+            ws.setActiveFileHandle(handles[0]);
+        }
+        await window.renderPDF(await pdfFiles[0].arrayBuffer(), false, { viewer: targetViewer });
+        for (let i = 1; i < pdfFiles.length; i++) {
+            if (showBusy) {
+                window.showLoading(`Appending PDF ${i + 1} of ${total}…`);
+            }
+            await window.renderPDF(await pdfFiles[i].arrayBuffer(), true, { viewer: targetViewer });
+        }
+        if (ws && ws.setDocTitle && targetDoc) {
+            ws.setDocTitle(targetDoc, pdfFiles[0].name, handles[0] || null);
+        }
+
+        if (window.pendingProjectData) {
+            const modal = document.getElementById("pendingProjectModal");
+            if (modal) modal.style.display = "none";
+            const schema = window.pendingProjectData;
+            window.pendingProjectData = null;
+            try {
+                const root = targetViewer
+                    || (window.APP && APP.DOM && APP.DOM.viewer)
+                    || document.getElementById("viewer");
+                if (root) {
+                    root._gaProjectSchema = schema;
+                    const expectedForms = (Array.isArray(schema.pages) ? schema.pages : [])
+                        .reduce((n, p) => n + ((p.overlays || []).filter((o) => o && o.type === "formField").length), 0);
+                    if (expectedForms > 0) root.dataset.expectedFormFields = String(expectedForms);
+                }
+                window.applyProjectData(schema, root);
+                if (typeof window.scheduleSuppressNativesForDesignerTwins === "function") {
+                    window.scheduleSuppressNativesForDesignerTwins(root || undefined);
+                }
+                if (typeof window.scheduleEnsureFormsReady === "function") {
+                    window.scheduleEnsureFormsReady(root, { schema });
+                }
+            } catch (e) {
+                console.warn("[file-import] pending project apply failed", e);
+            }
+        }
+        if (ws && ws.renderTabBar) {
+            ws.renderTabBar();
+            if (ws.persistSession) ws.persistSession().catch(() => {});
+        }
+    } finally {
+        if (showBusy && typeof window.hideLoading === "function") {
+            window.hideLoading();
+        }
     }
 }
 
@@ -147,6 +176,15 @@ function showDropChoiceModal(pdfFiles, handles, intent) {
  * @param {{ handles?: Array<FileSystemFileHandle|null> }} [opts]
  */
 window.processPdfFiles = async function(files, forceAppend = false, opts = {}) {
+    if (window.isAppBusy && window.isAppBusy()) {
+        if (typeof window.customAlert === "function") {
+            window.customAlert(
+                "Please wait for the current PDFs to finish loading.",
+                "⏳ Still loading"
+            );
+        }
+        return;
+    }
     const list = Array.from(files || []);
     const pdfFiles = list.filter(f => f && (
         f.name.toLowerCase().endsWith(".gapdf")
@@ -196,7 +234,7 @@ window.processPdfFiles = async function(files, forceAppend = false, opts = {}) {
     showDropChoiceModal(pdfFiles, handles, "append");
 };
 
-// --- The Location Engine (Top, Current, Bottom) ---
+// === Insert location ===
 window.processInsertion = async function(position) {
     document.getElementById("insertChoiceModal").style.display = "none";
     if (window.pendingImportFiles.length === 0) return;
@@ -208,84 +246,106 @@ window.processInsertion = async function(position) {
         insertBtn.disabled = true;
     }
 
+    const files = window.pendingImportFiles.slice();
+    const total = files.length;
+    const showBusy = typeof window.showLoading === "function";
     let allAddedWrappers = [];
 
-    for (let file of window.pendingImportFiles) {
-        const addedWrappers = await window.renderPDF(await file.arrayBuffer(), true);
-        if (addedWrappers) allAddedWrappers = allAddedWrappers.concat(addedWrappers);
-    }
+    try {
+        if (showBusy) {
+            window.showLoading(
+                total > 1
+                    ? `Inserting PDF 1 of ${total}…`
+                    : "Inserting PDF…"
+            );
+        }
 
-    if (allAddedWrappers.length > 0) {
-        const allWrappers = Array.from(APP.DOM.viewer.querySelectorAll(".pageWrapper"));
-        const oldWrappers = allWrappers.filter(w => !allAddedWrappers.includes(w));
+        const insertViewer = (APP.DOM && APP.DOM.viewer) || document.getElementById("viewer");
+        for (let i = 0; i < files.length; i++) {
+            if (showBusy && total > 1) {
+                window.showLoading(`Inserting PDF ${i + 1} of ${total}…`);
+            }
+            const addedWrappers = await window.renderPDF(await files[i].arrayBuffer(), true, {
+                viewer: insertViewer
+            });
+            if (addedWrappers) allAddedWrappers = allAddedWrappers.concat(addedWrappers);
+        }
 
-        let referenceSibling = null;
+        if (allAddedWrappers.length > 0) {
+            const allWrappers = Array.from(APP.DOM.viewer.querySelectorAll(".pageWrapper"));
+            const oldWrappers = allWrappers.filter(w => !allAddedWrappers.includes(w));
 
-        if (position === "top") {
-            referenceSibling = oldWrappers[0] || null;
-        } else if (position === "current") {
-            let currentWrapper = null;
-            let minDiff = Infinity;
-            const viewerRect = APP.DOM.viewer.getBoundingClientRect();
-            const viewerCenter = viewerRect.top + (viewerRect.height / 2);
+            let referenceSibling = null;
 
-            oldWrappers.forEach(w => {
-                const rect = w.getBoundingClientRect();
-                const wrapperCenter = rect.top + (rect.height / 2);
-                const diff = Math.abs(wrapperCenter - viewerCenter);
-                if (diff < minDiff) {
-                    minDiff = diff;
-                    currentWrapper = w;
+            if (position === "top") {
+                referenceSibling = oldWrappers[0] || null;
+            } else if (position === "current") {
+                let currentWrapper = null;
+                let minDiff = Infinity;
+                const viewerRect = APP.DOM.viewer.getBoundingClientRect();
+                const viewerCenter = viewerRect.top + (viewerRect.height / 2);
+
+                oldWrappers.forEach(w => {
+                    const rect = w.getBoundingClientRect();
+                    const wrapperCenter = rect.top + (rect.height / 2);
+                    const diff = Math.abs(wrapperCenter - viewerCenter);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        currentWrapper = w;
+                    }
+                });
+
+                if (currentWrapper) {
+                    const currentIndex = oldWrappers.indexOf(currentWrapper);
+                    referenceSibling = oldWrappers[currentIndex + 1] || null;
+                }
+            } else if (position === "bottom") {
+                referenceSibling = null;
+            }
+
+            allAddedWrappers.forEach(w => {
+                if (referenceSibling && referenceSibling.parentNode === APP.DOM.viewer) {
+                    APP.DOM.viewer.insertBefore(w, referenceSibling);
+                } else {
+                    APP.DOM.viewer.appendChild(w);
                 }
             });
 
-            if (currentWrapper) {
-                const currentIndex = oldWrappers.indexOf(currentWrapper);
-                referenceSibling = oldWrappers[currentIndex + 1] || null;
+            window.syncPageThumbnails();
+
+            setTimeout(() => {
+                if (allAddedWrappers[0]) {
+                    APP.DOM.viewer.scrollTo({
+                        top: allAddedWrappers[0].offsetTop - 20,
+                        behavior: "smooth"
+                    });
+                }
+            }, 50);
+
+            if (window.GaProcessor && allAddedWrappers.length) {
+                const steps = allAddedWrappers.map((w) =>
+                    window.GaProcessor.build.createNode(w, "Insert page")
+                );
+                window.GaProcessor.commit(
+                    window.GaProcessor.build.compound(
+                        steps,
+                        `Inserted ${files.length} PDF(s)`
+                    )
+                );
             }
-        } else if (position === "bottom") {
-            referenceSibling = null;
         }
-
-        allAddedWrappers.forEach(w => {
-            if (referenceSibling && referenceSibling.parentNode === APP.DOM.viewer) {
-                APP.DOM.viewer.insertBefore(w, referenceSibling);
-            } else {
-                APP.DOM.viewer.appendChild(w);
-            }
-        });
-
-        window.syncPageThumbnails();
-
-        setTimeout(() => {
-            if (allAddedWrappers[0]) {
-                APP.DOM.viewer.scrollTo({
-                    top: allAddedWrappers[0].offsetTop - 20,
-                    behavior: "smooth"
-                });
-            }
-        }, 50);
-
-        if (window.GaProcessor && allAddedWrappers.length) {
-            const steps = allAddedWrappers.map((w) =>
-                window.GaProcessor.build.createNode(w, "Insert page")
-            );
-            window.GaProcessor.commit(
-                window.GaProcessor.build.compound(
-                    steps,
-                    `Inserted ${window.pendingImportFiles.length} PDF(s)`
-                )
-            );
+    } finally {
+        if (showBusy && typeof window.hideLoading === "function") {
+            window.hideLoading();
         }
+        if (insertBtn) {
+            insertBtn.innerText = originalText;
+            insertBtn.disabled = false;
+        }
+        window.pendingImportFiles = [];
+        window.pendingImportHandles = [];
+        window.pendingImportIntent = null;
     }
-
-    if (insertBtn) {
-        insertBtn.innerText = originalText;
-        insertBtn.disabled = false;
-    }
-    window.pendingImportFiles = [];
-    window.pendingImportHandles = [];
-    window.pendingImportIntent = null;
 };
 
 // Wire up the Choice Modal Buttons
@@ -299,7 +359,7 @@ document.getElementById("insertCancelBtn").addEventListener("click", () => {
     window.pendingImportIntent = null;
 });
 
-// --- Open PDF Button Listener ---
+// === Open PDF button ===
 APP.DOM.fileInput.addEventListener("change", e => {
     window.processPdfFiles(e.target.files, false);
     APP.DOM.fileInput.value = "";
@@ -316,7 +376,7 @@ document.getElementById("imageInput").addEventListener("change", (e) => {
     reader.readAsDataURL(file); e.target.value = "";
 });
 
-// --- Choice Modal Button Wiring ---
+// === Choice modal buttons ===
 document.getElementById("dropAppendBtn").addEventListener("click", async () => {
     APP.DOM.dropChoiceModal.style.display = "none";
     const files = window.pendingImportFiles.slice();

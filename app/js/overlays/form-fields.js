@@ -1132,7 +1132,7 @@ window.embedOneFormField = function(form, pdfDoc, page, f, box, font, name) {
     return true;
 };
 
-// --- Workspace: Editor vs Form mode ---
+// === Workspace: Editor vs Form mode ===
 window.applyWorkspaceMode = function(opts = {}) {
     const mode = APP.workspaceMode === "form" ? "form" : "editor";
     APP.workspaceMode = mode;

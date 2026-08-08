@@ -60,7 +60,7 @@ APP.DOM.toolModeSelect.addEventListener("change", (e) => {
     window.clearActiveOverlay();
 });
 
-// --- Master Mouse Engine ---
+// === Mouse engine ===
 window.addEventListener('dragstart', e => {
     if (APP.currentMode === "edit" || APP.currentMode === "select") e.preventDefault();
 });
@@ -240,7 +240,7 @@ function onViewerMouseDown(e) {
 }
 
 window.addEventListener("mousemove", e => {
-    // 0. Resizing form fields while placing
+    // Resizing form fields while placing
     if (APP.isDrawingFormField && APP.currentFormField) {
         const targetContainer = APP.currentFormField.closest(".pageContainer");
         if (!targetContainer) return;
@@ -269,7 +269,7 @@ window.addEventListener("mousemove", e => {
         }
     }
 
-    // 1. Resizing Shapes
+    // Resizing Shapes
     if (APP.isDrawingShape && APP.currentShape) {
         const targetContainer = APP.currentShape.closest(".pageContainer"); 
         if (!targetContainer) return;
@@ -302,7 +302,7 @@ window.addEventListener("mousemove", e => {
         }
     }
     
-    // 2. Resizing the Marquee / Text Vacuum
+    // Resizing the Marquee / Text Vacuum
     if (APP.isDrawingMarquee && APP.marqueeBox) {
         const targetContainer = APP.marqueeBox.closest(".pageContainer");
         if (!targetContainer) return;
@@ -316,9 +316,9 @@ window.addEventListener("mousemove", e => {
     }
 });
 
-// --- Unified MouseUp Engine ---
+// === Mouse up ===
 window.addEventListener("mouseup", e => {
-    // 0. Resolve form field placement
+    // Resolve form field placement
     if (APP.isDrawingFormField) {
         APP.isDrawingFormField = false;
         if (APP.currentFormField) {
@@ -372,7 +372,7 @@ window.addEventListener("mouseup", e => {
             }
         }
     }
-    // 2. Resolve Marquee Box
+    // Resolve Marquee Box
     if (APP.isDrawingMarquee && APP.marqueeBox) {
         APP.isDrawingMarquee = false;
         const targetContainer = APP.marqueeBox.closest(".pageContainer");

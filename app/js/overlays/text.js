@@ -64,7 +64,7 @@ window.addTextOverlay = function(container, dropX, dropY) {
 window.processSpansForStamp = function(selectedSpans, container) {
     if (!selectedSpans || selectedSpans.length === 0) return;
 
-    // 1. Sort the captured spans visually (top-to-bottom, left-to-right)
+    // Sort the captured spans visually
     selectedSpans.sort((a, b) => {
         const aRect = a.getBoundingClientRect(); const bRect = b.getBoundingClientRect();
         if (Math.abs(aRect.top - bRect.top) < 8) return aRect.left - bRect.left;
@@ -75,7 +75,7 @@ window.processSpansForStamp = function(selectedSpans, container) {
     let combinedText = "", maxSpanHeight = 0, lastTop = -1;
     let baseStyles = { font: "Roboto", size: 12, color: "#000000", weight: "400", lineHeight: "1.2" };
 
-    // 2. Loop through and extract the text and boundary box
+    // Loop through and extract the text and boundary box
     selectedSpans.forEach((span, i) => {
         const rect = span.getBoundingClientRect();
         const containerRect = container.getBoundingClientRect();
@@ -102,7 +102,7 @@ window.processSpansForStamp = function(selectedSpans, container) {
 
     baseStyles.size = Math.max(8, Math.round(maxSpanHeight) - 1);
     
-    // 3. Fire the modal with the vacuumed data!
+    // Fire the modal with the vacuumed data!
     window.openEditModal(container, combinedText.trim(), { 
         x: minX - 2, y: minY - 2, width: (maxX - minX) + 6, height: (maxY - minY) + 4 
     }, baseStyles);
@@ -210,7 +210,7 @@ document.getElementById("applyEditModalBtn").addEventListener("click", () => {
     window.pendingEditTarget = null;
 });
 
-// --- Text History Tracker ---
+// === Text History Tracker ===
 let activeTextBeforeState = null;
 let activeTextOverlay = null;
 
@@ -224,7 +224,7 @@ window.addEventListener("focusin", e => {
                 textCss: e.target.style.cssText
             };
             
-            // 2. Reposition toolbar if it would clip
+            // Reposition toolbar if it would clip
             setTimeout(() => window.adjustToolbarPosition(activeTextOverlay), 10);
         }
     }

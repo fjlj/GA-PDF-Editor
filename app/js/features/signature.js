@@ -13,7 +13,7 @@ sigInput.addEventListener("input", () => {
             const canvas = document.createElement("canvas"); 
             const ctx = canvas.getContext("2d");
             
-            // 1. Set the font so we can accurately measure it
+            // Set the font so we can accurately measure it
             ctx.font = `40px ${font}`; 
             
             // 2. measure ink bounds for tight canvas
@@ -23,15 +23,15 @@ sigInput.addEventListener("input", () => {
             const inkDescent = metrics.actualBoundingBoxDescent;
             const inkHeight = inkAscent + inkDescent;
 
-            // 3. Size the canvas tightly around the ink (with a tiny 4px safe buffer)
+            // Size the canvas tightly around the ink
             canvas.width = Math.max(10, inkWidth + 8); 
             canvas.height = Math.max(10, inkHeight + 8); 
             
-            // 4. Re-apply the font (resizing a canvas clears its context state!)
+            // Re-apply the font
             ctx.font = `40px ${font}`; 
             ctx.fillStyle = "#000000"; 
             
-            // 5. Draw the text exactly inside our tight new bounds
+            // Draw the text exactly inside our tight new bounds
             ctx.fillText(text, 4 + metrics.actualBoundingBoxLeft, 4 + inkAscent);
             
             const img = document.createElement("img"); 

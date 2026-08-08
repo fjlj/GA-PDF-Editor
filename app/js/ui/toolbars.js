@@ -39,7 +39,7 @@ window.createRichTextToolbar = function(textNode, styleNode) {
             let pickedColor = null;
 
             try {
-                // 1. Hide the modal to reveal the document
+                // Hide the modal to reveal the document
                 if (parentModal) {
                     // Stash current display state to restore it cleanly later
                     parentModal.dataset.prevDisplay = parentModal.style.display;
@@ -55,7 +55,7 @@ window.createRichTextToolbar = function(textNode, styleNode) {
                     await new Promise(r => setTimeout(r, 50)); 
                 }
 
-                // 2. Open the native picker
+                // Open the native picker
                 const dropper = new EyeDropper();
                 const result = await dropper.open();
                 pickedColor = result.sRGBHex;
@@ -63,14 +63,14 @@ window.createRichTextToolbar = function(textNode, styleNode) {
             } catch (err) {
                 // User pressed Escape/Cancel, do nothing
             } finally {
-                // 3. ALWAYS restore the modal, whether successful or cancelled
+                // ALWAYS restore the modal, whether successful or cancelled
                 if (parentModal) {
                     parentModal.style.opacity = '1';
                     parentModal.style.pointerEvents = 'auto';
                 }
             }
 
-            // 4. Apply the color ONLY AFTER the modal is visible again
+            // Apply the color ONLY AFTER the modal is visible again
             if (pickedColor) {
                 colorInput.value = pickedColor;
                 colorInput.dispatchEvent(new Event("input")); // Triggers your existing style logic

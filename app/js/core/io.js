@@ -1,11 +1,95 @@
-// Some Helper functions (maybe put in utils.js)
-// --- LOADING UI HELPERS ---
+// Helper bits that grew a personality (busy-state edition)
+//
+// Two flavors of "please wait":
+//  1) Full-screen dim+spinner — multi-file smash-together / export. User is NOT browsing.
+//  2) Soft doc gate — big multi-page open. Pages stream in (fun!), but save/print wait
+//     until the dust settles. Refcounted + a 30min panic timeout so we never brick the UI.
+
+window._gaOverlayBusy = false;
+window._gaDocGateDepth = 0;
+window._gaDocGateSafetyTimer = null;
+// If something forgets endDocGate, this is the "break glass" timer
+const GA_DOC_GATE_SAFETY_MS = 30 * 60 * 1000;
+
+window.isAppBusy = function() {
+    return !!window._gaOverlayBusy || (window._gaDocGateDepth > 0);
+};
+
+// Little toast at the bottom. Pointer-events: none — it does not eat clicks. Polite.
+window.setDocLoadStatus = function(message) {
+    let el = document.getElementById("ga-doc-load-status");
+    if (!message) {
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+        return;
+    }
+    if (!el) {
+        el = document.createElement("div");
+        el.id = "ga-doc-load-status";
+        el.setAttribute("role", "status");
+        el.setAttribute("aria-live", "polite");
+        el.style.cssText = [
+            "position:fixed", "bottom:14px", "left:50%", "transform:translateX(-50%)",
+            "z-index:99990", "pointer-events:none",
+            "background:rgba(20,20,20,0.9)", "color:#eee",
+            "padding:8px 16px", "border-radius:8px",
+            "font:13px/1.3 system-ui,sans-serif", "font-weight:600",
+            "box-shadow:0 4px 16px rgba(0,0,0,0.4)",
+            "border:1px solid rgba(0,170,255,0.45)",
+            "max-width:90vw", "text-align:center"
+        ].join(";");
+        document.body.appendChild(el);
+    }
+    el.textContent = message;
+};
+
+window.beginDocGate = function(/* reason */) {
+    window._gaDocGateDepth = (window._gaDocGateDepth || 0) + 1;
+    if (window._gaDocGateDepth === 1) {
+        if (window._gaDocGateSafetyTimer) {
+            clearTimeout(window._gaDocGateSafetyTimer);
+        }
+        window._gaDocGateSafetyTimer = setTimeout(() => {
+            if (window._gaDocGateDepth > 0) {
+                console.warn(
+                    "[busy] doc gate safety clear after timeout; depth was",
+                    window._gaDocGateDepth
+                );
+                window._gaDocGateDepth = 0;
+                window.setDocLoadStatus(null);
+            }
+            window._gaDocGateSafetyTimer = null;
+        }, GA_DOC_GATE_SAFETY_MS);
+    }
+};
+
+window.endDocGate = function() {
+    window._gaDocGateDepth = Math.max(0, (window._gaDocGateDepth || 0) - 1);
+    if (window._gaDocGateDepth === 0) {
+        if (window._gaDocGateSafetyTimer) {
+            clearTimeout(window._gaDocGateSafetyTimer);
+            window._gaDocGateSafetyTimer = null;
+        }
+        window.setDocLoadStatus(null);
+    }
+};
+
+// Console escape hatch: forceClearAppBusy() if the universe glitches
+window.forceClearAppBusy = function() {
+    window._gaDocGateDepth = 0;
+    if (window._gaDocGateSafetyTimer) {
+        clearTimeout(window._gaDocGateSafetyTimer);
+        window._gaDocGateSafetyTimer = null;
+    }
+    window.setDocLoadStatus(null);
+    window.hideLoading();
+};
+
 window.showLoading = function(message) {
     let loader = document.getElementById("ga-export-loader");
     if (!loader) {
         loader = document.createElement("div");
         loader.id = "ga-export-loader";
-        // Below save/modals (1_000_000) but above app chrome
+        // Under modals (1e6), over the rest of the chrome. Yes, magic z-index. Sue me later.
         loader.style.cssText = "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); color:white; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; font-family:sans-serif; font-size:18px; font-weight:bold;";
         loader.innerHTML = `
             <style>@keyframes ga-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
@@ -14,13 +98,22 @@ window.showLoading = function(message) {
         `;
         document.body.appendChild(loader);
     }
-    document.getElementById("ga-export-text").innerText = message;
+    const textEl = document.getElementById("ga-export-text");
+    if (textEl) textEl.innerText = message || "Working…";
     loader.style.display = "flex";
+    loader.setAttribute("aria-busy", "true");
+    loader.setAttribute("role", "alert");
+    window._gaOverlayBusy = true;
 };
 
 window.hideLoading = function() {
     const loader = document.getElementById("ga-export-loader");
-    if (loader) loader.style.display = "none";
+    if (loader) {
+        loader.style.display = "none";
+        loader.removeAttribute("aria-busy");
+    }
+    window._gaOverlayBusy = false;
+    // Overlay off ≠ gate off. Soft gate may still be babysitting save/print.
 };
 
 // Helper to let the browser breathe so the UI can actually update
@@ -155,8 +248,14 @@ window.writeSaveDestination = async function(dest, blob) {
 
 window.pendingProjectData = null;
 
-// --- STEP 1: THE SERIALIZER & BINARY APPENDER ---
+// === Serializer ===
 window.exportProject = async function() {
+    if (window.isAppBusy && window.isAppBusy()) {
+        return window.customAlert(
+            "Please wait for the current operation to finish before saving.",
+            "⏳ Still working"
+        );
+    }
     const viewer = (APP.DOM && APP.DOM.viewer) || document.getElementById("viewer");
     const wrappers = viewer ? viewer.querySelectorAll(".pageWrapper") : document.querySelectorAll(".pageWrapper");
     if (wrappers.length === 0) return window.customAlert("No PDF pages found.");
@@ -835,7 +934,7 @@ window.stripAcroFormFieldsFromPdfDoc = function(pdfDoc, opts) {
     const PDFArray = PDFLibNS && PDFLibNS.PDFArray;
     const nameOf = (n) => (PDFName ? PDFName.of(n) : null);
 
-    // --- Pass 1: high-level form API ---
+    // === Form API ===
     let formRef = null;
     try {
         // Prefer live form; if catalog has no AcroForm yet, getForm creates one
@@ -872,7 +971,7 @@ window.stripAcroFormFieldsFromPdfDoc = function(pdfDoc, opts) {
         console.warn("[stripAcroForm] getForm failed", e);
     }
 
-    // --- Pass 2: page-level Widget annotations ---
+    // === Widget annotations ===
     try {
         const pages = pdfDoc.getPages();
 
@@ -958,7 +1057,7 @@ window.stripAcroFormFieldsFromPdfDoc = function(pdfDoc, opts) {
         console.warn("[stripAcroForm] page Annots pass failed", e);
     }
 
-    // --- Pass 3: catalog cleanup depends on whether we will re-embed ---
+    // === Catalog cleanup ===
     if (prepareForReembed) {
         // KEEP catalog /AcroForm and formCache so subsequent create* writes
         // into a form that save() will actually serialize.
@@ -991,9 +1090,15 @@ window.stripAcroFormFieldsFromPdfDoc = function(pdfDoc, opts) {
     return result.fields + result.widgets;
 };
 
-// --- EXPORT TO PDF (FLATTEN DECORATIVE OVERLAYS + REAL ACROFORM FIELDS) ---
+// === Export to PDF ===
 // exportScaleOrOpts: number (legacy) or { exportScale, password }
 window.exportPdf = async function(exportScaleOrOpts = 2) {
+    if (window.isAppBusy && window.isAppBusy()) {
+        return window.customAlert(
+            "Please wait for the current operation to finish before exporting.",
+            "⏳ Still working"
+        );
+    }
     const opts = (typeof exportScaleOrOpts === "object" && exportScaleOrOpts !== null)
         ? exportScaleOrOpts
         : { exportScale: exportScaleOrOpts };
@@ -1364,11 +1469,13 @@ window.resolveProjectPageWrapper = function(pageData, wrappersArr, scopeRoot) {
     return null;
 };
 
-// --- STEP 2: THE DESERIALIZER ---
-window.applyProjectData = function(schema) {
+// === Deserializer ===
+window.applyProjectData = function(schema, rootViewer) {
     let totalApplied = 0; let missingPages = 0;
     
-    const viewerEl = (APP.DOM && APP.DOM.viewer) || document.getElementById("viewer");
+    const viewerEl = rootViewer
+        || (APP.DOM && APP.DOM.viewer)
+        || document.getElementById("viewer");
     const allWrappers = Array.from(
         viewerEl
             ? viewerEl.querySelectorAll(".pageWrapper")

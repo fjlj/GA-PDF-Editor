@@ -63,7 +63,7 @@ window.resolveOcrWorkerOptions = async function() {
         const workerSrc = window.b64ToUtf8(window.__TESS_WORKER_B64);
         const combined =
             coreSrc +
-            "\n;\n// --- tesseract worker (file:// offline bootstrap) ---\n" +
+            "\n;\n// === Tesseract worker ===\n" +
             workerSrc;
         window._tessCombinedWorkerBlobUrl = URL.createObjectURL(
             new Blob([combined], { type: "application/javascript" })
